@@ -1,5 +1,6 @@
 import { type ReactNode, Suspense, lazy, useMemo, useState } from 'react'
 import type { Result } from '@shared/types'
+import type { Plan } from '@shared/explain'
 import { chartDirective } from '@shared/split'
 import { useWs } from '../lib/ws'
 import { COPY_FORMATS, formatRows, display } from '../lib/format'
@@ -10,13 +11,16 @@ import { Icon } from '../components/Icon'
 import { menuAt } from '../components/ui'
 import { QuickLook } from './QuickLook'
 import { ExportResultDialog } from './ImportExport'
+import { ExplainView } from './Explain'
 
-export interface ResultTab { id: string; title: string; results: Result[]; pinned?: boolean }
+/** `plan`: an explain result shown as a plan; `summary`: one row per statement of the run. */
+export interface ResultTab { id: string; title: string; results: Result[]; pinned?: boolean; plan?: Plan; summary?: boolean }
 
 const SEARCH_OPS = ['Contains', 'Not contains', 'Has prefix', 'Has suffix'] as const
 
 export function ResultsPane({ tabs, active, onActive, onPin, onClose, running }: { tabs: ResultTab[]; active: number; onActive: (i: number) => void; onPin: (id: string) => void; onClose: (id: string) => void; running: boolean }): ReactNode {
   const tab = tabs[active] ?? tabs[0]
+  const [jump, setJump] = useState<{ id: string; idx: number } | null>(null)
   if (!tabs.length) {
     return <div className="empty" style={{ flex: 1 }}>{running ? 'Running…' : 'Run a query to see results here. ⌘↩ runs the statement under the cursor, ⇧⌘↩ runs everything.'}</div>
   }
@@ -35,13 +39,22 @@ export function ResultsPane({ tabs, active, onActive, onPin, onClose, running }:
           })}
         </div>
       )}
-      {tab && <ResultView key={tab.id} tab={tab} onPin={() => onPin(tab.id)} running={running} />}
+      {tab?.summary ? (
+        <SummaryView tab={tab} onPin={() => onPin(tab.id)} onOpen={(res) => {
+          const i = tabs.findIndex((t) => !t.summary && t.results.includes(res))
+          if (i < 0) return
+          setJump({ id: tabs[i].id, idx: tabs[i].results.indexOf(res) })
+          onActive(i)
+        }} />
+      ) : tab?.plan ? (
+        <ExplainView key={tab.id} plan={tab.plan} title={tab.title} pinned={tab.pinned} onPin={() => onPin(tab.id)} />
+      ) : tab && <ResultView key={`${tab.id}:${jump?.id === tab.id ? jump.idx : 0}`} tab={tab} initialIdx={jump?.id === tab.id ? jump.idx : 0} onPin={() => onPin(tab.id)} running={running} />}
     </div>
   )
 }
 
-function ResultView({ tab, onPin, running }: { tab: ResultTab; onPin: () => void; running: boolean }): ReactNode {
-  const [idx, setIdx] = useState(0)
+function ResultView({ tab, initialIdx, onPin, running }: { tab: ResultTab; initialIdx: number; onPin: () => void; running: boolean }): ReactNode {
+  const [idx, setIdx] = useState(initialIdx)
   const res = tab.results[Math.min(idx, tab.results.length - 1)]
   const hasRows = res.columns.length > 0
   const directive = chartDirective(res.sql)
@@ -116,7 +129,7 @@ function ResultView({ tab, onPin, running }: { tab: ResultTab; onPin: () => void
           columns={res.columns.map((c) => ({ name: c.name, type: c.type }))}
           rows={rows}
           onSelect={setSel}
-          onDoubleClickCell={(r, c) => { setQuick({ r, c }); return true }}
+          onActivate={(r, c) => setQuick({ r, c })}
           onCopy={(e) => e.clipboardData?.setData('text/plain', formatRows('csv', cols, selected()))}
           onKey={(e, s) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && s) { setQuick({ r: s.r1, c: s.c1 }); return true } return false }}
           onCellMenu={(e, r, c) => menuAt(e, [
@@ -153,6 +166,37 @@ function ResultView({ tab, onPin, running }: { tab: ResultTab; onPin: () => void
       )}
       {quick && <QuickLook column={cols[quick.c]} value={rows[quick.r]?.[quick.c]} readOnly onSave={() => {}} onClose={() => setQuick(null)} />}
       {exporting && <ExportResultDialog title={tab.title} columns={cols} rows={rows} table={conn ? 'query_result' : undefined} onClose={() => setExporting(false)} />}
+    </div>
+  )
+}
+
+/** One row per statement of the last run; a row opens that statement's result. */
+function SummaryView({ tab, onPin, onOpen }: { tab: ResultTab; onPin: () => void; onOpen: (r: Result) => void }): ReactNode {
+  const failed = tab.results.filter((r) => r.error).length
+  const total = tab.results.reduce((a, r) => a + r.ms, 0)
+  return (
+    <div className="col grow" style={{ minHeight: 0 }}>
+      <div className="row" style={{ height: 28, padding: '0 var(--sp-4)', borderBottom: '1px solid var(--border)', fontSize: 'var(--fs-sm)', flex: 'none' }}>
+        <span className={failed ? 'danger-text' : 'muted'}>{tab.results.length} statements · {failed ? `${failed} failed` : 'all succeeded'} · {total} ms</span>
+        <span className="grow" />
+        <button className={`btn ghost icon sm ${tab.pinned ? 'on' : ''}`} aria-label="Pin result" title="Keep this result when re-running" onClick={onPin}><Icon name="pin" size={12} /></button>
+      </div>
+      <div className="summary-view">
+        <table className="plan-table">
+          <thead><tr><th>#</th><th>Status</th><th>Rows</th><th>Time</th><th>Statement</th></tr></thead>
+          <tbody>
+            {tab.results.map((r, i) => (
+              <tr key={i} className="link" tabIndex={0} onClick={() => onOpen(r)} onKeyDown={(e) => e.key === 'Enter' && onOpen(r)} title={r.error ?? 'Open this result'}>
+                <td className="faint">{i + 1}</td>
+                <td className={r.error ? 'danger-text' : ''}>{r.error ? 'Error' : 'OK'}</td>
+                <td>{r.error ? '' : r.columns.length ? `${r.rowCount.toLocaleString()} returned` : `${(r.affected ?? 0).toLocaleString()} affected`}</td>
+                <td>{r.ms} ms</td>
+                <td className="sql mono">{r.error ? <span className="danger-text">{r.error.split('\n')[0]} · </span> : null}{r.sql.split('\n').find((l) => l.trim() && !/^\s*--/.test(l))?.trim() ?? r.sql.trim()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

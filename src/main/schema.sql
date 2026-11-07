@@ -47,7 +47,7 @@ create table if not exists history (
   connection_id text not null references connections(id) on delete cascade,
   database text,
   sql text not null,
-  source text not null default 'editor' check (source in ('editor','commit','user_mgmt','metrics','plugin')),
+  source text not null default 'editor',     -- editor | commit | user_mgmt | metrics | plugin | explain | transfer | sync | …
   duration_ms integer,
   error text,
   original_values text,              -- csv of rows before update/delete (optional setting)

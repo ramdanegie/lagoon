@@ -13,6 +13,20 @@ export function openStore(): void {
   mkdirSync(dir, { recursive: true })
   db = new DatabaseSync(join(dir, 'app.db'))
   db.exec(schema)
+  migrate()
+}
+
+/** Older stores limited history.source with a CHECK; new features log their own sources, so rebuild without it. */
+function migrate(): void {
+  const h = db.prepare("select sql from sqlite_master where type = 'table' and name = 'history'").get() as { sql: string } | undefined
+  if (!h?.sql.includes('check (source in')) return
+  db.exec(`begin;
+    alter table history rename to history_old;
+    ${schema.slice(schema.indexOf('create table if not exists history'), schema.indexOf(');', schema.indexOf('create table if not exists history')) + 2)}
+    insert into history select * from history_old;
+    drop table history_old;
+    create index if not exists history_conn_time on history(connection_id, executed_at desc);
+    commit;`)
 }
 
 const now = (): string => new Date().toISOString()
@@ -123,8 +137,13 @@ export const deleteGroup = (id: string): Group[] => (db.prepare('delete from gro
 // ---------- history ----------
 export function addHistory(e: Omit<HistoryEntry, 'id' | 'executedAt'>): void {
   if (getSetting<boolean>('history.disabled', false)) return
-  db.prepare('insert into history (connection_id, database, sql, source, duration_ms, error) values (?,?,?,?,?,?)')
-    .run(e.connectionId, e.database ?? null, e.sql, e.source, e.durationMs ?? null, e.error ?? null)
+  // history is a convenience: a failed write here must never fail the user's query
+  try {
+    db.prepare('insert into history (connection_id, database, sql, source, duration_ms, error) values (?,?,?,?,?,?)')
+      .run(e.connectionId, e.database ?? null, e.sql, e.source, e.durationMs ?? null, e.error ?? null)
+  } catch (err) {
+    console.error('history write failed', err)
+  }
 }
 
 export function listHistory(connectionId: string, search = '', limit = 500): HistoryEntry[] {

@@ -61,7 +61,8 @@ const WRITE_WORDS = /\b(insert|update|delete|merge|drop|alter|create|truncate|gr
 export function isReadOnly(sql: string): boolean {
   const s = stripComments(sql).trim()
   if (!READ_ONLY.test(s)) return false
-  if (/^with\b/i.test(s) || /^explain\s+analy[sz]e/i.test(s)) return !WRITE_WORDS.test(s.replace(/'(?:[^']|'')*'/g, "''"))
+  // EXPLAIN ANALYZE executes the statement, in both `EXPLAIN ANALYZE x` and `EXPLAIN (ANALYZE, …) x` forms
+  if (/^with\b/i.test(s) || /^explain\s+analy[sz]e/i.test(s) || /^explain\s*\([^)]*\banaly[sz]e\b/i.test(s)) return !WRITE_WORDS.test(s.replace(/'(?:[^']|'')*'/g, "''"))
   return true
 }
 

@@ -58,6 +58,10 @@ export const DEFAULTS = {
   'csv.quote': 'auto',
   'csv.lineBreak': '\n',
   'csv.decimal': '.',
+  // explain + snippets
+  'explain.analyze': false,
+  'explain.threshold': 30,
+  'snippets.user': [] as { id: string; name: string; prefix: string; body: string; dialects?: string[] }[],
   // keymap: command id -> accelerator (null = removed)
   keymap: {} as Record<string, string | null>
 }

@@ -77,6 +77,7 @@ export interface EditorOptions {
   readOnly?: boolean
   language?: Extension
   placeholder?: string
+  extensions?: Extension // extra behaviour from the host screen (hover cards, click handlers)
 }
 
 export function CodeEditor(props: {
@@ -106,7 +107,8 @@ export function CodeEditor(props: {
       o.closeBrackets === false ? [] : closeBrackets(),
       o.wrap ? EditorView.lineWrapping : [],
       EditorState.readOnly.of(!!o.readOnly),
-      o.placeholder ? cmPlaceholder(o.placeholder) : []
+      o.placeholder ? cmPlaceholder(o.placeholder) : [],
+      o.extensions ?? []
     ]
   }
 
@@ -140,7 +142,7 @@ export function CodeEditor(props: {
     if (v && v.state.doc.toString() !== props.value) v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: props.value } })
   }, [props.value])
 
-  useEffect(() => { view.current?.dispatch({ effects: cfg.current.reconfigure(configure(props.options)) }) }, [JSON.stringify({ ...props.options, schema: undefined, language: undefined, extraCompletions: undefined }), props.options.schema, props.options.extraCompletions])
+  useEffect(() => { view.current?.dispatch({ effects: cfg.current.reconfigure(configure(props.options)) }) }, [JSON.stringify({ ...props.options, schema: undefined, language: undefined, extraCompletions: undefined, extensions: undefined }), props.options.schema, props.options.extraCompletions, props.options.extensions])
 
   return <div ref={host} className={`editor-wrap ${props.className ?? ''}`} style={{ flex: 1, minHeight: 0 }} />
 }

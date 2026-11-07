@@ -113,6 +113,14 @@ try {
   await ws.getByText(/division by zero/).first().waitFor()
   step('SQL editor: two statements, result tabs, error tab')
 
+  // Visual Explain on the first statement
+  await ws.locator('.cm-content').last().click()
+  await ws.keyboard.press('Meta+ArrowUp')
+  await ws.getByRole('button', { name: 'Explain', exact: true }).click()
+  await ws.getByText(/Seq Scan|HashAggregate|Sort/).first().waitFor({ timeout: 15000 })
+  await ws.screenshot({ path: join(shots, 'S17-explain.png') })
+  step('Visual Explain renders a plan tree')
+
   // Open Anything
   await command('nav.openAnything')
   await ws.getByPlaceholder(/Open anything/).fill('ord')

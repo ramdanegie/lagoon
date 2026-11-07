@@ -1,0 +1,66 @@
+/* Visual explain, statement summary, snippets popover and the editor's table hover card. */
+
+.plan-bar { height: 28px; padding: 0 var(--sp-4); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); flex: none; }
+.plan-threshold { font-size: var(--fs-xs); color: var(--fg-muted); }
+.plan-threshold input { width: 90px; accent-color: var(--danger); }
+.plan-split { align-items: stretch; gap: 0; }
+.plan-canvas { flex: 1; min-width: 0; overflow: auto; padding: var(--sp-6); }
+
+/* top-down tree: every <ul> draws the stem below its parent card, every child <li> a bar half and a drop */
+.plan-tree, .plan-tree ul { display: flex; justify-content: center; margin: 0; padding: 0; list-style: none; }
+.plan-tree { width: max-content; min-width: 100%; }
+.plan-tree ul { position: relative; padding-top: var(--sp-5); }
+.plan-tree ul::before { content: ''; position: absolute; top: 0; left: 50%; height: var(--sp-5); border-left: 1px solid var(--border-strong); }
+.plan-tree li { display: flex; flex-direction: column; align-items: center; position: relative; padding: var(--sp-5) var(--sp-3) 0; }
+.plan-tree > li { padding-top: 0; }
+.plan-tree ul > li::before, .plan-tree ul > li::after { content: ''; position: absolute; top: 0; width: 50%; height: var(--sp-5); border-top: 1px solid var(--border-strong); }
+.plan-tree ul > li::before { right: 50%; }
+.plan-tree ul > li::after { left: 50%; border-left: 1px solid var(--border-strong); }
+.plan-tree ul > li:first-child::before, .plan-tree ul > li:last-child::after { border-top: 0; }
+
+.plan-node { display: grid; gap: var(--sp-1); min-width: 150px; max-width: 260px; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--bg-elev); text-align: left; font-size: var(--fs-sm); cursor: pointer; }
+.plan-node:hover { background: var(--bg-hover); }
+.plan-node.sel { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.plan-node.hot { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--bg-elev)); }
+.pn-op { font-weight: 600; overflow-wrap: anywhere; }
+.pn-rel { color: var(--fg-muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.pn-meta { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); color: var(--fg-muted); font-size: var(--fs-xs); }
+.pn-share { display: flex; align-items: center; gap: var(--sp-3); }
+.pn-bar { flex: 1; height: 3px; border-radius: var(--r-sm); background: var(--bg-active); overflow: hidden; }
+.pn-bar > span { display: block; height: 100%; background: var(--accent); }
+.pn-pct { font-size: var(--fs-xs); color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.plan-node.hot .pn-bar > span { background: var(--danger); }
+.plan-node.hot .pn-pct { color: var(--danger); font-weight: 600; }
+
+.plan-detail { width: 300px; flex: none; border-left: 1px solid var(--border); padding: var(--sp-4) var(--sp-5); overflow: auto; display: grid; align-content: start; gap: var(--sp-4); font-size: var(--fs-sm); }
+.plan-detail .kv > span { overflow-wrap: anywhere; }
+.plan-stats { flex: 1; overflow: auto; padding: var(--sp-4) var(--sp-5); display: grid; align-content: start; gap: var(--sp-6); }
+.plan-none { padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); }
+
+.plan-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.plan-table th, .plan-table td { text-align: left; padding: var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--grid-line); white-space: nowrap; }
+.plan-table th { position: sticky; top: 0; background: var(--bg-elev); color: var(--fg-muted); font-weight: 500; }
+.plan-table td.sql { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; width: 60%; }
+.plan-table tr.link { cursor: pointer; }
+.plan-table tr.link:hover td { background: var(--bg-hover); }
+.plan-table tr.link:focus-visible td { background: var(--bg-selected-soft); }
+.summary-view { flex: 1; overflow: auto; }
+
+/* snippets popover */
+.snip-pop { display: grid; gap: var(--sp-3); }
+.snip-list { max-height: 320px; overflow: auto; display: grid; gap: var(--sp-1); align-content: start; }
+.snip-item { display: grid; grid-template-columns: 1fr auto; gap: var(--sp-1) var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-sm); cursor: pointer; }
+.snip-item:hover, .snip-item:focus-visible { background: var(--bg-hover); }
+.snip-item .body { grid-column: 1 / -1; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--fg-faint); white-space: pre; overflow: hidden; text-overflow: ellipsis; max-height: 3.2em; }
+.snip-item .tag { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--fg-muted); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 0 var(--sp-2); }
+.snip-form { display: grid; gap: var(--sp-3); }
+.snip-form .textarea { min-height: 120px; }
+
+/* editor: hover card over a table name */
+.cm-table-tip { padding: var(--sp-3) var(--sp-4); font-size: var(--fs-xs); max-height: 320px; overflow: auto; min-width: 200px; }
+.cm-table-tip .tt-head { font-weight: 600; font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
+.cm-table-tip table { border-collapse: collapse; }
+.cm-table-tip td { padding: 1px var(--sp-3) 1px 0; font-family: var(--font-mono); white-space: nowrap; }
+.cm-table-tip td.mark { color: var(--warning); font-family: var(--font-ui); font-size: 10px; font-weight: 600; }
+.cm-table-tip td.type { color: var(--fg-faint); }
+.cm-table-tip .tt-foot { color: var(--fg-faint); margin-top: var(--sp-2); }

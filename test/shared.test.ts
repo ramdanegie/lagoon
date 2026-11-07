@@ -24,6 +24,10 @@ test('read-only classifier', () => {
   assert.ok(!isReadOnly('with x as (delete from t returning *) select * from x'))
   assert.ok(!isReadOnly('update t set a=1'))
   assert.ok(isReadOnly("with x as (select 'delete') select 1"))
+  assert.ok(!isReadOnly('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) DELETE FROM t'))
+  assert.ok(!isReadOnly('explain analyze update t set a = 1'))
+  assert.ok(isReadOnly('EXPLAIN (ANALYZE, FORMAT JSON) SELECT * FROM t'))
+  assert.ok(isReadOnly('EXPLAIN (FORMAT JSON) SELECT 1'))
 })
 
 test('literals escape per dialect', () => {
