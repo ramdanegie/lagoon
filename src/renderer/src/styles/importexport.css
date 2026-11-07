@@ -1,0 +1,34 @@
+/* Import / export / backup dialogs and the jobs bell. Tokens only. */
+.ie-bell { position: relative; }
+.ie-badge { position: absolute; top: -2px; right: -2px; min-width: 14px; height: 14px; padding: 0 var(--sp-1); border-radius: 7px; background: var(--accent); color: var(--fg-on-accent); font-size: 9px; font-weight: 700; display: grid; place-items: center; }
+
+.ie-progress { display: block; width: 100%; height: 6px; appearance: none; border: 0; border-radius: 3px; background: var(--bg-input); overflow: hidden; }
+.ie-progress::-webkit-progress-bar { background: var(--bg-input); border-radius: 3px; }
+.ie-progress::-webkit-progress-value { background: var(--accent); border-radius: 3px; transition: width var(--dur-med) var(--ease-out); }
+.ie-progress:indeterminate { background: linear-gradient(90deg, var(--bg-input) 0%, var(--accent) 50%, var(--bg-input) 100%) 0 0 / 200% 100%; animation: ie-indet 1.4s linear infinite; }
+@keyframes ie-indet { to { background-position: -200% 0; } }
+
+.ie-job { display: grid; gap: var(--sp-2); min-width: 0; }
+.ie-job-msg { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+.ie-jobs { display: grid; max-height: 360px; overflow: auto; }
+.ie-job-row { display: grid; gap: var(--sp-2); padding: var(--sp-4); }
+.ie-job-row + .ie-job-row { border-top: 1px solid var(--border); }
+
+.ie-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5); align-items: start; }
+.ie-preview { height: 220px; display: flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.ie-scroll { max-height: 180px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
+.ie-map { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.ie-map th, .ie-map td { text-align: left; padding: var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--grid-line); }
+.ie-map th { position: sticky; top: 0; background: var(--bg-elev); color: var(--fg-muted); font-weight: 500; }
+.ie-sql { max-height: 380px; }
+.ie-checks { gap: var(--sp-3); align-items: flex-start; }
+
+.ie-export { display: grid; grid-template-columns: 240px 1fr; gap: var(--sp-6); min-height: 380px; }
+.ie-items { flex: 1; min-height: 200px; max-height: 50vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-2); }
+.ie-tokens { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+.ie-tool { display: grid; grid-template-columns: 220px 1fr; gap: var(--sp-5); min-height: 380px; }
+.ie-conns { overflow: auto; max-height: 60vh; border-right: 1px solid var(--border); padding-right: var(--sp-3); }
+.ie-conns .conn-item { margin: 0; }
+.ie-conns .conn-item .drv { width: 28px; height: 28px; }
+.ie-log { height: 240px; margin: 0; }

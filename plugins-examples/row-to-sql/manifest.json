@@ -1,0 +1,11 @@
+{
+  "id": "com.lagoon.examples.row-to-sql",
+  "name": "Row to SQL",
+  "version": "1.0.0",
+  "description": "Copies the selected rows as UPDATE statements, and counts a table's rows from the sidebar.",
+  "script": "main.js",
+  "commands": [
+    { "id": "copy-update", "title": "Copy Row as UPDATE", "placement": "cell", "handler": "copyUpdate" },
+    { "id": "count", "title": "Count Rows", "placement": "sidebarItem", "handler": "countRows" }
+  ]
+}

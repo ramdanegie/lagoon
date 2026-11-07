@@ -1,0 +1,48 @@
+/* Metrics board + Chart component */
+.mb { display: flex; flex: 1; min-height: 0; }
+.mb-list { width: 200px; flex: none; background: var(--bg-sidebar); border-right: 1px solid var(--border); overflow: auto; padding: 0 var(--sp-2) var(--sp-4); }
+.mb-list .section-title .btn { height: 18px; width: 18px; }
+.mb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mb-main > .runbar { border-top: 0; }
+.mb-canvas { flex: 1; min-height: 0; overflow: auto; background: var(--bg-app); }
+.mb-canvas.grid-on { background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 16px 16px; background-attachment: local; }
+.mb-inner { position: relative; min-width: 100%; min-height: 100%; }
+.mb-empty { position: absolute; inset: 20% 0 auto 0; }
+
+.mb-obj { position: absolute; display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: 0 1px 2px color-mix(in srgb, var(--bg-overlay) 40%, transparent); overflow: visible; }
+.mb-obj:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.mb-obj:not(.locked) .mb-head { cursor: grab; }
+.mb-head { height: 26px; flex: none; display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-2) 0 var(--sp-4); font-size: var(--fs-sm); font-weight: 500; border-bottom: 1px solid var(--border); }
+.mb-head .btn { opacity: 0; }
+.mb-obj:hover .mb-head .btn, .mb-obj:focus-within .mb-head .btn { opacity: 1; }
+.mb-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 0 0 var(--r-md) var(--r-md); }
+.mb-body > .empty { padding: var(--sp-5); font-size: var(--fs-sm); align-content: center; height: 100%; }
+.mb-foot { height: 22px; flex: none; display: flex; align-items: center; padding: 0 var(--sp-4); border-top: 1px solid var(--border); font-size: var(--fs-xs); }
+.mb-error { padding: var(--sp-4) var(--sp-5); color: var(--danger); font-family: var(--font-mono); font-size: var(--fs-sm); white-space: pre-wrap; overflow: auto; }
+.mb-progress { position: absolute; left: 0; right: 0; top: 25px; height: 2px; overflow: hidden; z-index: 1; }
+.mb-progress::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 30%; background: var(--accent); animation: indet 1.2s infinite var(--ease-out); }
+
+.mb-score { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: var(--sp-4) var(--sp-5); min-width: 0; }
+.mb-score-value { font-size: 32px; font-weight: 600; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mb-score-detail { font-size: var(--fs-sm); margin-top: var(--sp-2); }
+.mb-control { margin: auto var(--sp-4); }
+.mb-button { margin: auto var(--sp-4); }
+.type-input .mb-body, .type-dropdown .mb-body, .type-button .mb-body, .type-exporter .mb-body { justify-content: center; }
+
+.mb-dot { position: absolute; right: -6px; top: 50%; width: 11px; height: 11px; margin-top: -5px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg-panel); cursor: crosshair; z-index: 2; }
+.mb-dot:hover { transform: scale(1.25); }
+.mb-resize { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; cursor: nwse-resize; z-index: 2; background: linear-gradient(135deg, transparent 55%, var(--border-strong) 55%, var(--border-strong) 65%, transparent 65%, transparent 75%, var(--border-strong) 75%, var(--border-strong) 85%, transparent 85%); border-radius: 0 0 var(--r-md) 0; }
+
+.mb-links { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.mb-link { fill: none; stroke: var(--accent); stroke-width: 1.5; opacity: 0.7; }
+.mb-link.drafting { stroke-dasharray: 4 3; opacity: 1; }
+.mb-link-hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; cursor: pointer; }
+.mb-link-hit:hover + .mb-link, g:hover > .mb-link { opacity: 1; stroke-width: 2.5; }
+
+.mb-field-col { display: grid; gap: var(--sp-2); font-size: var(--fs-sm); }
+.mb-sql { height: 140px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); }
+.mb-sql .cm-editor { height: 100%; }
+
+.chart-box { flex: 1; min-height: 0; min-width: 0; height: 100%; position: relative; padding: var(--sp-2); }
+.chart-box .recharts-wrapper { outline: none; }
+.chart-note { position: absolute; right: var(--sp-4); top: var(--sp-2); font-size: var(--fs-xs); }

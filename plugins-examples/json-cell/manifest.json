@@ -1,0 +1,11 @@
+{
+  "id": "com.lagoon.examples.json-cell",
+  "name": "JSON Cell",
+  "version": "1.0.0",
+  "description": "Pretty-prints or compacts a JSON value in the clicked cell.",
+  "script": "main.js",
+  "commands": [
+    { "id": "pretty", "title": "Format JSON", "placement": "cell", "handler": "pretty" },
+    { "id": "compact", "title": "Compact JSON", "placement": "cell", "handler": "compact" }
+  ]
+}

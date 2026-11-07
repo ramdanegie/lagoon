@@ -1,0 +1,8 @@
+node_modules
+dist
+out
+.DS_Store
+.eslintcache
+*.log*
+test/e2e/.shots
+build/icon-src/*.iconset

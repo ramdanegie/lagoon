@@ -1,0 +1,27 @@
+/* Redis browser and MongoDB views. Tokens only. */
+.nosql { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.nosql-row { display: flex; flex: 1; min-height: 0; }
+.nosql-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.nosql-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); background: var(--bg-elev); flex: none; min-height: 32px; font-size: var(--fs-sm); }
+.nosql-addbar { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); flex: none; }
+.nosql-addbar .input { flex: 1; }
+.nosql-error { padding: var(--sp-3) var(--sp-5); color: var(--danger); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); user-select: text; white-space: pre-wrap; }
+
+.redis-dbs { width: 112px; flex: none; overflow: auto; padding: var(--sp-2); background: var(--bg-sidebar); border-right: 1px solid var(--border); }
+.redis-dbs .list-item { font-family: var(--font-mono); font-size: var(--fs-sm); }
+.redis-value { flex: 1; border-left: 1px solid var(--border); }
+.redis-value textarea { flex: 1; margin: var(--sp-4); resize: none; }
+.redis-console-out { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-3) var(--sp-4); background: var(--bg-input); font-family: var(--font-mono); font-size: var(--fs-sm); white-space: pre-wrap; user-select: text; }
+.redis-console-out .cmd { color: var(--accent); }
+.redis-console-out .err { color: var(--danger); }
+.redis-console-in { display: flex; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-4); border-top: 1px solid var(--border); background: var(--bg-input); font-family: var(--font-mono); flex: none; }
+.redis-console-in input { flex: 1; height: 28px; border: 0; background: transparent; outline: none; font-family: var(--font-mono); font-size: var(--fs-sm); user-select: text; }
+
+.mongo-tree { flex: 1; overflow: auto; padding: var(--sp-3) var(--sp-4); font-family: var(--font-mono); font-size: var(--grid-font-size); user-select: text; }
+.mongo-tree .node { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--h-row); white-space: nowrap; }
+.mongo-tree .node > button { border: 0; background: transparent; padding: 0; width: 16px; height: 16px; display: grid; place-items: center; color: var(--fg-muted); border-radius: var(--r-sm); }
+.mongo-tree .node > button:hover { background: var(--bg-hover); }
+.mongo-tree .k { color: var(--syn-ident); }
+.mongo-tree .v { overflow: hidden; text-overflow: ellipsis; }
+.mongo-tree .t { color: var(--fg-faint); font-family: var(--font-ui); font-size: var(--fs-xs); margin-left: auto; padding-left: var(--sp-5); }
+.mongo-tree .kids { padding-left: var(--sp-6); border-left: 1px solid var(--grid-line); margin-left: 7px; }

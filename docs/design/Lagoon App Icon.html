@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Lagoon · Ikon App</title>
+<style>
+  body { margin: 0; background: #E9E8E4; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1d1d1f; }
+  body.raw { background: transparent; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .sheet { box-sizing: border-box; padding: 64px; display: flex; flex-direction: column; gap: 36px; width: 1880px; }
+  .eyebrow { font-size: 13px; font-weight: 600; color: #5f5f64; letter-spacing: .02em; }
+  h1 { font-size: 40px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
+  .lede { font-size: 15px; color: #5f5f64; max-width: 1000px; text-wrap: pretty; line-height: 1.5; }
+  .checker { padding: 24px; border-radius: 16px; background: repeating-conic-gradient(#F2F1EE 0 25%, #E3E2DE 0 50%) 0 0 / 24px 24px; display: inline-block; }
+  .card { display: flex; gap: 22px; align-items: flex-end; padding: 20px 24px; border-radius: 16px; background: #fff; }
+  .size { white-space: nowrap; display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 10.5px; color: #5f5f64; }
+  .dock { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 16px; background: linear-gradient(180deg, oklch(0.5 0.035 255), oklch(0.34 0.03 262)); }
+  .dock .shelf { height: 92px; padding: 0 8px; border-radius: 22px; background: rgba(255,255,255,.18); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.3); display: flex; align-items: center; gap: 2px; }
+  .notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; max-width: 1290px; }
+  .note { padding: 18px 20px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 .5px rgba(0,0,0,.08); font-size: 13px; line-height: 1.55; color: #3a3a3c; }
+  .note b { display: block; font-size: 14px; color: #1d1d1f; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// One source for every render: the design sheet below and the exported PNGs (?raw=full|small).
+// Ecosystem rules (from the Dylan icon sheet): 1024 canvas, 824 rounded square r186, teal gradient, same shadows,
+// glyph = one solid white part + one fading white part split by a thin line. Only the glyph differs per app.
+const TEAL = 'linear-gradient(180deg, #62C3C1 0%, #2AA3A5 45%, #00838A 100%)'
+const FADE = (a, b) => `linear-gradient(180deg, rgba(255,255,255,${a}) 0%, rgba(255,255,255,${b}) 100%)`
+const box = (x, y, w, h, style) => `<div style="position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px; ${style}"></div>`
+
+function art() {
+  // grid of "cells" that fades out behind the glyph, a soft light bloom, deep teal at the bottom corner,
+  // and two small node-and-line accents in the empty corners
+  const grid = `<div style="position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,.085) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,.085) 1.5px, transparent 1.5px); background-size:64px 64px; background-position:20px 20px; -webkit-mask-image:radial-gradient(ellipse 62% 58% at 50% 52%, transparent 38%, #000 92%)"></div>`
+  const bloom = `<div style="position:absolute; inset:0; background:radial-gradient(ellipse 70% 55% at 18% 0%, rgba(255,255,255,.26) 0%, rgba(255,255,255,0) 60%)"></div>`
+  const depth = `<div style="position:absolute; inset:0; background:radial-gradient(ellipse 75% 60% at 92% 108%, rgba(0,58,64,.38) 0%, rgba(0,58,64,0) 62%)"></div>`
+  const s = 'rgba(255,255,255,.42)'
+  const accents = `<svg width="824" height="824" viewBox="0 0 824 824" style="position:absolute; inset:0" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M598 92 H700 V148" stroke="${s}" stroke-width="3"/>
+    <circle cx="586" cy="92" r="11" stroke="${s}" stroke-width="3"/>
+    <circle cx="700" cy="92" r="5.5" fill="rgba(255,255,255,.7)"/>
+    <circle cx="700" cy="160" r="11" stroke="${s}" stroke-width="3"/>
+    <path d="M118 676 V740 H226" stroke="${s}" stroke-width="3"/>
+    <circle cx="118" cy="664" r="11" stroke="${s}" stroke-width="3"/>
+    <circle cx="118" cy="740" r="5.5" fill="rgba(255,255,255,.7)"/>
+    <circle cx="238" cy="740" r="11" stroke="${s}" stroke-width="3"/>
+    <path d="M744 556 l6 -16 l6 16 l16 6 l-16 6 l-6 16 l-6 -16 l-16 -6 z" fill="rgba(255,255,255,.55)"/>
+    <path d="M92 168 l4 -11 l4 11 l11 4 l-11 4 l-4 11 l-4 -11 l-11 -4 z" fill="rgba(255,255,255,.4)"/>
+  </svg>`
+  const halo = `<div style="position:absolute; inset:0; background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.13) 0%, rgba(255,255,255,0) 42%)"></div>`
+  return grid + bloom + depth + halo + accents
+}
+
+function glyph(small) {
+  if (small) {
+    // simplified for 16–32 px: thicker parts, 2 × 2 cells, no separator (same rule as the menu-bar glyph)
+    return box(132, 186, 560, 168, `border-radius:62px; background:#fff; box-shadow:0 10px 24px rgba(0,50,55,.18)`)
+      + box(132, 390, 262, 116, `border-radius:44px; background:${FADE(.82, .56)}`)
+      + box(430, 390, 262, 116, `border-radius:44px; background:${FADE(.82, .56)}`)
+      + box(132, 530, 262, 116, `border-radius:44px; background:${FADE(.5, .24)}`)
+      + box(430, 530, 262, 116, `border-radius:44px; background:${FADE(.5, .24)}`)
+  }
+  // table: solid header row on top, a thin line, then the data rows fading downwards
+  const cells = []
+  for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) {
+    cells.push(box(152 + c * 180, 388 + r * 124, 160, 104, `border-radius:36px; background:${r ? FADE(.46, .22) : FADE(.78, .5)}`))
+  }
+  return box(152, 208, 520, 132, `border-radius:52px; background:#FFFFFF; box-shadow:0 10px 24px rgba(0,50,55,.18)`)
+    + box(130, 363, 564, 1.5, `background:rgba(255,255,255,.55)`)
+    + cells.join('')
+}
+
+function icon(size, variant = 'full') {
+  const small = variant === 'small'
+  return `<div style="width:${size}px; height:${size}px; overflow:hidden; flex:none"><div style="position:relative; width:1024px; height:1024px; transform:scale(${size / 1024}); transform-origin:top left">
+    <div style="position:absolute; left:100px; top:100px; width:824px; height:824px; border-radius:186px; overflow:hidden; background:${TEAL}; box-shadow:0 18px 36px rgba(0,60,64,.28), 0 3px 8px rgba(0,0,0,.12)">
+      ${small ? '' : art()}
+      <div style="position:absolute; inset:0; border-radius:186px; box-shadow:inset 0 3px 0 rgba(255,255,255,.22)"></div>
+      ${glyph(small)}
+    </div></div></div>`
+}
+
+// Dylan 4c, redrawn from its sheet for the side-by-side check
+function dylan(size) {
+  return `<div style="width:${size}px; height:${size}px; overflow:hidden; flex:none"><div style="position:relative; width:1024px; height:1024px; transform:scale(${size / 1024}); transform-origin:top left"><div style="position:absolute; left:100px; top:100px; width:824px; height:824px; border-radius:186px; overflow:hidden; background:${TEAL}; box-shadow:0 18px 36px rgba(0,60,64,.28), 0 3px 8px rgba(0,0,0,.12)"><div style="position:absolute; inset:0; border-radius:186px; box-shadow:inset 0 3px 0 rgba(255,255,255,.22)"></div>${box(308, 250, 208, 324, 'border-radius:72px; background:#FFFFFF; box-shadow:0 10px 24px rgba(0,50,55,.18)')}${box(282, 228, 1.5, 368, 'background:rgba(255,255,255,.55)')}${box(542, 228, 1.5, 368, 'background:rgba(255,255,255,.55)')}${box(118, 290, 140, 244, 'border-radius:60px; background:linear-gradient(270deg, rgba(255,255,255,.78) 0%, rgba(255,255,255,.22) 100%)')}${box(566, 290, 140, 244, 'border-radius:60px; background:linear-gradient(90deg, rgba(255,255,255,.78) 0%, rgba(255,255,255,.22) 100%)')}</div></div></div>`
+}
+
+const raw = new URLSearchParams(location.search).get('raw')
+const root = document.getElementById('root')
+if (raw) {
+  document.body.classList.add('raw')
+  root.innerHTML = icon(1024, raw)
+} else {
+  const sizes = [[128, 'full'], [64, 'full'], [32, 'small'], [16, 'small']]
+  root.innerHTML = `<section class="sheet">
+    <div style="display:flex; flex-direction:column; gap:8px">
+      <div class="eyebrow">LAGOON · IKON APP · EKOSISTEM DYLAN</div>
+      <h1>Ikon app — teal, glyph Tabel</h1>
+      <div class="lede">Squircle, gradien teal, bayangan, highlight tepi atas dan bahasa glyph-nya sama persis dengan Dylan dan Cermin: satu bagian putih solid, satu bagian putih memudar, dipisah garis tipis. Glyph Lagoon adalah tabel: baris header solid di atas, baris data memudar ke bawah. Di belakangnya ada lapisan art: grid sel yang memudar ke tengah, cahaya lembut di kiri atas, halo di belakang glyph, kedalaman teal di kanan bawah, dan dua aksen node-garis di sudut kosong.</div>
+    </div>
+    <div style="display:flex; gap:48px; align-items:flex-start">
+      <div style="display:flex; flex-direction:column; gap:18px; width:560px">
+        <div class="checker">${icon(512)}</div>
+        <div class="card">
+          ${sizes.map(([s, v]) => `<div class="size">${icon(s, v)}<span class="mono">${s}${v === 'small' ? ' · kecil' : ''}</span></div>`).join('')}
+          <div style="margin-left:auto; display:flex; gap:14px; align-items:center; padding:12px 14px; border-radius:12px; background:#1E1E20">${icon(64)}${icon(32, 'small')}${icon(16, 'small')}</div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:18px">
+        <div class="checker">${icon(256, 'small')}</div>
+        <div style="display:flex; flex-direction:column; gap:8px"><span class="eyebrow">Berdampingan dengan Dylan</span>
+          <div class="dock"><div class="shelf">${dylan(84)}${icon(84)}</div>
+            <div style="display:flex; flex-direction:column; gap:2px; font-size:12px; color:rgba(255,255,255,.85)"><span>Dylan · Lagoon</span><span style="color:rgba(255,255,255,.55); font-size:11px">Dylan digambar ulang di sini untuk perbandingan</span></div>
+          </div>
+        </div>
+        <div class="notes" style="grid-template-columns:repeat(2, minmax(0, 300px))">
+          <div class="note"><b>Solid</b>Header tabel 520 × 132, radius 52, putih penuh dengan bayangan glyph ekosistem.</div>
+          <div class="note"><b>Memudar</b>6 sel data 160 × 104, radius 36. Baris 1 alpha 78 → 50 %, baris 2 alpha 46 → 22 %.</div>
+          <div class="note"><b>Garis tipis</b>1,5 px, putih 55 %, melebar 22 px di kiri-kanan glyph seperti pada Dylan.</div>
+          <div class="note"><b>Versi kecil</b>16, 16@2x dan 32 memakai master kecil: tanpa art dan garis, sel 2 × 2 lebih tebal.</div>
+        </div>
+      </div>
+    </div>
+  </section>`
+}
+</script>
+</body>
+</html>

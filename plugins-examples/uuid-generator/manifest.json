@@ -1,0 +1,11 @@
+{
+  "id": "com.lagoon.examples.uuid",
+  "name": "UUID Generator",
+  "version": "1.0.0",
+  "description": "Puts a fresh random (v4) UUID into the clicked cell or onto the clipboard.",
+  "script": "main.js",
+  "commands": [
+    { "id": "set-cell", "title": "Set New UUID", "placement": "cell", "handler": "setCell" },
+    { "id": "copy", "title": "Copy New UUID", "placement": "tools", "shortcut": "CmdOrCtrl+Alt+U", "handler": "copy" }
+  ]
+}

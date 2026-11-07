@@ -1,0 +1,18 @@
+/* ER diagram */
+.dg { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.dg > .runbar { border-top: 0; }
+.dg-canvas { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.dg-svg { width: 100%; height: 100%; display: block; outline: none; cursor: grab; }
+.dg-svg:active { cursor: grabbing; }
+.dg-table { cursor: default; outline: none; }
+.dg-table:focus-visible .dg-box { stroke: var(--focus); stroke-width: 2.5; }
+.dg-row:hover { fill: var(--bg-hover); }
+.dg-dot { opacity: 0; cursor: crosshair; }
+.dg-table:hover .dg-dot, .dg-table:focus-within .dg-dot { opacity: 1; }
+.dg-hit { cursor: pointer; }
+.dg-search { display: flex; align-items: center; gap: var(--sp-2); }
+.dg-search .input { width: 180px; }
+.dg-overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: var(--sp-4); color: var(--fg-muted); font-size: var(--fs-sm); pointer-events: none; }
+.dg-overlay .btn, .dg-overlay .selectable { pointer-events: auto; }
+.dg-progress { width: 220px; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.dg-progress > div { height: 100%; background: var(--accent); transition: width var(--dur-fast); }

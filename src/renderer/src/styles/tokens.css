@@ -1,0 +1,119 @@
+/* Design tokens. Components use only these variables. Themes override the color set. */
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 20px;
+  --grid-font-size: 12px;
+  --editor-font-size: 13px;
+  --sidebar-font-size: 13px;
+
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 24px;
+  --sp-8: 32px;
+
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+
+  --h-control: 24px;
+  --h-row: 22px;
+  --h-toolbar: 44px;
+  --h-tabbar: 30px;
+  --h-bottombar: 30px;
+  --w-sidebar: 240px;
+  --w-right: 300px;
+
+  --dur-fast: 120ms;
+  --dur-med: 180ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --z-popover: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+}
+
+/* dark (default) */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-app: #1e1f22;
+  --bg-panel: #25262a;
+  --bg-sidebar: #222326;
+  --bg-elev: #2d2e33;
+  --bg-input: #18191b;
+  --bg-hover: #32343a;
+  --bg-active: #3a3d44;
+  --bg-selected: #1c5456;
+  --bg-selected-soft: #1d3d3f;
+  --bg-row-alt: #232427;
+  --bg-overlay: rgba(0, 0, 0, 0.45);
+  --fg: #e3e4e8;
+  --fg-muted: #9b9ea6;
+  --fg-faint: #6d7079;
+  --fg-on-accent: #ffffff;
+  --border: #36383e;
+  --border-strong: #4a4d55;
+  --grid-line: #2e3035;
+  --accent: #00838a;
+  --accent-hover: #0a9196;
+  --focus: #4fc3c1;
+  --danger: #ff5f57;
+  --warning: #f5a524;
+  --success: #3fbf6f;
+  --pending-new: rgba(63, 191, 111, 0.18);
+  --pending-mod: rgba(245, 165, 36, 0.2);
+  --pending-del: rgba(255, 95, 87, 0.22);
+  --null-fg: #6d7079;
+  --syn-keyword: #c792ea;
+  --syn-string: #9ece6a;
+  --syn-number: #ff9e64;
+  --syn-comment: #6d7079;
+  --syn-ident: #7aa2f7;
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-app: #f4f4f6;
+  --bg-panel: #ffffff;
+  --bg-sidebar: #eeeef1;
+  --bg-elev: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #e6e7eb;
+  --bg-active: #dadce2;
+  --bg-selected: #c3e9e8;
+  --bg-selected-soft: #e1f4f3;
+  --bg-row-alt: #f8f8fa;
+  --bg-overlay: rgba(20, 22, 28, 0.3);
+  --fg: #1d1e22;
+  --fg-muted: #60636c;
+  --fg-faint: #8f929a;
+  --fg-on-accent: #ffffff;
+  --border: #dcdde2;
+  --border-strong: #c3c5cc;
+  --grid-line: #e8e9ed;
+  --accent: #00838a;
+  --accent-hover: #00737a;
+  --focus: #00838a;
+  --danger: #d93a32;
+  --warning: #b86e00;
+  --success: #1f8a4c;
+  --pending-new: rgba(31, 138, 76, 0.14);
+  --pending-mod: rgba(214, 140, 0, 0.18);
+  --pending-del: rgba(217, 58, 50, 0.16);
+  --null-fg: #a3a6ad;
+  --syn-keyword: #8b3fd1;
+  --syn-string: #2a7a12;
+  --syn-number: #b5530b;
+  --syn-comment: #8f929a;
+  --syn-ident: #1f5ed1;
+  --shadow-pop: 0 8px 28px rgba(20, 22, 28, 0.18), 0 0 0 1px rgba(20, 22, 28, 0.08);
+}

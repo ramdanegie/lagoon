@@ -1,0 +1,158 @@
+import { type ReactNode, useMemo, useState } from 'react'
+import type { Result } from '@shared/types'
+import { chartDirective } from '@shared/split'
+import { useWs } from '../lib/ws'
+import { COPY_FORMATS, formatRows, display } from '../lib/format'
+import { addToMetricsBoard } from '../lib/metrics'
+import { Grid, type Sel } from '../components/Grid'
+import { Chart } from '../components/Chart'
+import { Icon } from '../components/Icon'
+import { menuAt } from '../components/ui'
+import { QuickLook } from './QuickLook'
+import { ExportResultDialog } from './ImportExport'
+
+export interface ResultTab { id: string; title: string; results: Result[]; pinned?: boolean }
+
+const SEARCH_OPS = ['Contains', 'Not contains', 'Has prefix', 'Has suffix'] as const
+
+export function ResultsPane({ tabs, active, onActive, onPin, onClose, running }: { tabs: ResultTab[]; active: number; onActive: (i: number) => void; onPin: (id: string) => void; onClose: (id: string) => void; running: boolean }): ReactNode {
+  const tab = tabs[active] ?? tabs[0]
+  if (!tabs.length) {
+    return <div className="empty" style={{ flex: 1 }}>{running ? 'Running…' : 'Run a query to see results here. ⌘↩ runs the statement under the cursor, ⇧⌘↩ runs everything.'}</div>
+  }
+  return (
+    <div className="col grow" style={{ minHeight: 0 }}>
+      {tabs.length > 1 && (
+        <div className="result-tabs" role="tablist" aria-label="Result tabs">
+          {tabs.map((t, i) => {
+            const err = t.results.some((r) => r.error)
+            return (
+              <div key={t.id} role="tab" aria-selected={i === active} className={`result-tab ${i === active ? 'on' : ''} ${err ? 'err' : ''}`} onClick={() => onActive(i)} onContextMenu={(e) => menuAt(e, [{ label: t.pinned ? 'Unpin' : 'Pin', onClick: () => onPin(t.id) }, { label: 'Close', onClick: () => onClose(t.id) }])}>
+                {t.pinned && <Icon name="pin" size={10} />}
+                {t.title}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {tab && <ResultView key={tab.id} tab={tab} onPin={() => onPin(tab.id)} running={running} />}
+    </div>
+  )
+}
+
+function ResultView({ tab, onPin, running }: { tab: ResultTab; onPin: () => void; running: boolean }): ReactNode {
+  const [idx, setIdx] = useState(0)
+  const res = tab.results[Math.min(idx, tab.results.length - 1)]
+  const hasRows = res.columns.length > 0
+  const directive = chartDirective(res.sql)
+  const [mode, setMode] = useState<'data' | 'message' | 'chart'>(res.error ? 'message' : directive ? 'chart' : hasRows ? 'data' : 'message')
+  const [search, setSearch] = useState<{ col: string; op: (typeof SEARCH_OPS)[number]; text: string; caseSensitive: boolean } | null>(null)
+  const [sel, setSel] = useState<Sel | null>(null)
+  const [quick, setQuick] = useState<{ r: number; c: number } | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [chart, setChart] = useState<{ type: 'bar' | 'line' | 'pie'; x?: string; y: string[] }>(() => directive ?? { type: 'bar', x: res.columns[0]?.name, y: res.columns.slice(1, 2).map((c) => c.name) })
+  const conn = useWs((s) => s.conn)
+  const cols = res.columns.map((c) => c.name)
+
+  const rows = useMemo(() => {
+    if (!search?.text) return res.rows
+    const needle = search.caseSensitive ? search.text : search.text.toLowerCase()
+    const ci = search.col === '__any__' ? -1 : cols.indexOf(search.col)
+    const test = (v: unknown): boolean => {
+      const s = search.caseSensitive ? display(v) : display(v).toLowerCase()
+      return search.op === 'Contains' ? s.includes(needle) : search.op === 'Not contains' ? !s.includes(needle) : search.op === 'Has prefix' ? s.startsWith(needle) : s.endsWith(needle)
+    }
+    return res.rows.filter((r) => (ci < 0 ? (search.op === 'Not contains' ? r.every(test) : r.some(test)) : test(r[ci])))
+  }, [res, search])
+
+  const selected = (): unknown[][] => (sel ? rows.slice(sel.r0, sel.r1 + 1) : [])
+  const copy = (fmt: Parameters<typeof formatRows>[0], cells = false): void => {
+    if (!sel) return
+    const data = selected().map((r) => (cells ? r.slice(sel.c0, sel.c1 + 1) : r))
+    void navigator.clipboard.writeText(formatRows(fmt, cells ? cols.slice(sel.c0, sel.c1 + 1) : cols, data, { dialect: 'postgres', schema: '', table: 'query_result' }))
+  }
+
+  const message = [
+    res.error ? `Error: ${res.error}` : res.columns.length ? `${res.rowCount.toLocaleString()} row(s) returned` : `${res.affected ?? 0} row(s) affected`,
+    res.command ? `Command: ${res.command}` : '',
+    `Time: ${res.ms} ms`,
+    ...(res.notices ?? []),
+    '',
+    res.sql
+  ].filter((x, i) => x || i > 3).join('\n')
+
+  return (
+    <div className="col grow" style={{ minHeight: 0 }}>
+      <div className="row" style={{ height: 28, padding: '0 var(--sp-4)', borderBottom: '1px solid var(--border)', fontSize: 'var(--fs-sm)', flex: 'none' }}>
+        <div className="seg" role="tablist" aria-label="Result view">
+          <button role="tab" aria-selected={mode === 'data'} className={mode === 'data' ? 'on' : ''} disabled={!hasRows} onClick={() => setMode('data')}>Data</button>
+          <button role="tab" aria-selected={mode === 'message'} className={mode === 'message' ? 'on' : ''} onClick={() => setMode('message')}>Message</button>
+          <button role="tab" aria-selected={mode === 'chart'} className={mode === 'chart' ? 'on' : ''} disabled={!hasRows} onClick={() => setMode('chart')}>Chart</button>
+        </div>
+        {tab.results.length > 1 && (
+          <select className="select sm" aria-label="Statement" value={idx} onChange={(e) => setIdx(Number(e.target.value))}>
+            {tab.results.map((r, i) => <option key={i} value={i}>{i + 1}. {r.sql.replace(/\s+/g, ' ').slice(0, 50)}</option>)}
+          </select>
+        )}
+        <span className={res.error ? 'danger-text ellipsis' : 'muted'} title={res.error}>
+          {res.error ? res.error.split('\n')[0] : hasRows ? `${rows.length.toLocaleString()}${search?.text ? ` of ${res.rowCount.toLocaleString()}` : ''} rows` : `${res.affected ?? 0} affected`} · {res.ms} ms
+        </span>
+        <span className="grow" />
+        {running && <span className="faint">Running…</span>}
+        {hasRows && mode === 'data' && <button className={`btn ghost icon sm ${search ? 'on' : ''}`} aria-label="Search in result" title="Search loaded rows" onClick={() => setSearch(search ? null : { col: '__any__', op: 'Contains', text: '', caseSensitive: false })}><Icon name="search" size={12} /></button>}
+        {hasRows && <button className="btn ghost sm" onClick={() => setExporting(true)}>Export…</button>}
+        <button className={`btn ghost icon sm ${tab.pinned ? 'on' : ''}`} aria-label="Pin result" title="Keep this result when re-running" onClick={onPin}><Icon name="pin" size={12} /></button>
+      </div>
+      {search && mode === 'data' && (
+        <div className="row" style={{ padding: 'var(--sp-3) var(--sp-4)', borderBottom: '1px solid var(--border)' }}>
+          <select className="select sm" aria-label="Search column" value={search.col} onChange={(e) => setSearch({ ...search, col: e.target.value })}><option value="__any__">Any column</option>{cols.map((c) => <option key={c}>{c}</option>)}</select>
+          <select className="select sm" aria-label="Search operator" value={search.op} onChange={(e) => setSearch({ ...search, op: e.target.value as typeof search.op })}>{SEARCH_OPS.map((o) => <option key={o}>{o}</option>)}</select>
+          <input className="input sm grow" autoFocus placeholder="Search loaded rows" aria-label="Search text" value={search.text} onChange={(e) => setSearch({ ...search, text: e.target.value })} onKeyDown={(e) => e.key === 'Escape' && setSearch(null)} />
+          <label className="check" style={{ fontSize: 'var(--fs-xs)' }}><input type="checkbox" checked={search.caseSensitive} onChange={(e) => setSearch({ ...search, caseSensitive: e.target.checked })} /> Match case</label>
+        </div>
+      )}
+      {mode === 'data' && hasRows && (
+        <Grid
+          columns={res.columns.map((c) => ({ name: c.name, type: c.type }))}
+          rows={rows}
+          onSelect={setSel}
+          onDoubleClickCell={(r, c) => { setQuick({ r, c }); return true }}
+          onCopy={(e) => e.clipboardData?.setData('text/plain', formatRows('csv', cols, selected()))}
+          onKey={(e, s) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && s) { setQuick({ r: s.r1, c: s.c1 }); return true } return false }}
+          onCellMenu={(e, r, c) => menuAt(e, [
+            { label: 'Quick Look', onClick: () => setQuick({ r, c }) },
+            { label: 'Copy Rows', kbd: '⌘C', onClick: () => copy('csv') },
+            { label: 'Copy Rows As', submenu: COPY_FORMATS.map((f) => ({ label: f.label, onClick: () => copy(f.id) })) },
+            { label: 'Copy Selected Cells', onClick: () => copy('plain', true) },
+            { label: 'Copy Selected Cells As', submenu: COPY_FORMATS.filter((f) => f.id !== 'insert').map((f) => ({ label: f.label, onClick: () => copy(f.id, true) })) },
+            { label: 'Copy Column Values', onClick: () => void navigator.clipboard.writeText(rows.map((x) => display(x[c])).join('\n')) },
+            { sep: true },
+            { label: 'Export…', onClick: () => setExporting(true) }
+          ])}
+        />
+      )}
+      {mode === 'message' && <div className={`message-view ${res.error ? 'danger-text' : ''}`}>{message}</div>}
+      {mode === 'chart' && hasRows && (
+        <div className="col grow" style={{ minHeight: 0 }}>
+          <div className="row" style={{ padding: 'var(--sp-3) var(--sp-4)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            <div className="seg">{(['bar', 'line', 'pie'] as const).map((t) => <button key={t} className={chart.type === t ? 'on' : ''} onClick={() => setChart({ ...chart, type: t })}>{t[0].toUpperCase() + t.slice(1)}</button>)}</div>
+            <label className="row" style={{ fontSize: 'var(--fs-sm)' }}>{chart.type === 'pie' ? 'Label' : 'X axis'}<select className="select sm" value={chart.x} onChange={(e) => setChart({ ...chart, x: e.target.value })}>{cols.map((c) => <option key={c}>{c}</option>)}</select></label>
+            <span style={{ fontSize: 'var(--fs-sm)' }}>{chart.type === 'pie' ? 'Value' : 'Y axis'}</span>
+            {cols.filter((c) => c !== chart.x).map((c) => (
+              <label key={c} className="check" style={{ fontSize: 'var(--fs-sm)' }}>
+                <input type={chart.type === 'pie' ? 'radio' : 'checkbox'} name="chart-y" checked={chart.y.includes(c)} onChange={(e) => setChart({ ...chart, y: chart.type === 'pie' ? [c] : e.target.checked ? [...chart.y, c] : chart.y.filter((x) => x !== c) })} />{c}
+              </label>
+            ))}
+            <span className="grow" />
+            <button className="btn sm" onClick={() => void addToMetricsBoard({ type: chart.type, label: tab.title, query: res.sql, x: chart.x, y: chart.y })}><Icon name="chart" size={11} /> Add to Metrics Board</button>
+          </div>
+          <div className="grow" style={{ minHeight: 0, padding: 'var(--sp-5)' }}>
+            <Chart type={chart.type} columns={res.columns} rows={res.rows} x={chart.x} y={chart.y} />
+          </div>
+        </div>
+      )}
+      {quick && <QuickLook column={cols[quick.c]} value={rows[quick.r]?.[quick.c]} readOnly onSave={() => {}} onClose={() => setQuick(null)} />}
+      {exporting && <ExportResultDialog title={tab.title} columns={cols} rows={rows} table={conn ? 'query_result' : undefined} onClose={() => setExporting(false)} />}
+    </div>
+  )
+}

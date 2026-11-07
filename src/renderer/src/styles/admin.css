@@ -1,0 +1,34 @@
+/* User management, process list and search-in-database panel. Tokens only. */
+
+/* ---------- user management ---------- */
+.um { display: grid; grid-template-columns: 230px 1fr; flex: 1; min-height: 0; }
+.um-side { display: flex; flex-direction: column; min-height: 0; background: var(--bg-sidebar); border-right: 1px solid var(--border); }
+.um-side .search { padding: var(--sp-4); }
+.um-users { flex: 1; overflow: auto; padding: 0 var(--sp-3); }
+/* single class so .list-item:hover / .selected still win */
+.adm-item { width: 100%; border: 0; background: none; text-align: left; }
+.adm-item.deleted .ellipsis { text-decoration: line-through; color: var(--fg-muted); }
+.um-dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex: none; margin-left: auto; }
+.um-foot { display: flex; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); }
+.um-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.um-head { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg-panel); }
+.um-body { flex: 1; overflow: auto; padding: var(--sp-6); display: grid; gap: var(--sp-5); align-content: start; }
+.um-form { display: grid; gap: var(--sp-4); max-width: 560px; }
+.um-hint { font-size: var(--fs-xs); color: var(--fg-faint); }
+.um-privs { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--sp-3) var(--sp-5); }
+.um-warn { border-left: 3px solid var(--warning); background: var(--bg-elev); padding: var(--sp-4) var(--sp-5); border-radius: var(--r-sm); font-size: var(--fs-sm); }
+.um-error { border-left: 3px solid var(--danger); background: var(--bg-elev); padding: var(--sp-4) var(--sp-5); border-radius: var(--r-sm); font-size: var(--fs-sm); white-space: pre-wrap; user-select: text; color: var(--danger); }
+.um-dual { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--sp-4); align-items: center; max-width: 640px; }
+.um-dual .col { gap: var(--sp-2); }
+.um-dual select { height: 210px; padding: var(--sp-2); }
+.um-dual .moves { display: grid; gap: var(--sp-3); }
+
+/* ---------- process list ---------- */
+.pl-grid { height: 52vh; display: flex; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
+
+/* ---------- search in database ---------- */
+.sp { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); min-height: 0; flex: 1; }
+.sp-pick { max-height: 170px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); display: grid; gap: var(--sp-1); background: var(--bg-input); }
+.sp-pick .check { font-size: var(--fs-sm); }
+.sp-results { flex: 1; overflow: auto; margin: 0 calc(-1 * var(--sp-2)); }
+.sp-status { font-size: var(--fs-xs); color: var(--fg-muted); }
