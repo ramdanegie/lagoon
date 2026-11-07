@@ -11,7 +11,7 @@ export const newFilter = (columns: Column[], defCol: string, defOp: string): Fil
   return { id: uid(), enabled: true, column, op: (defOp as FilterOp) ?? '=', value: '' }
 }
 
-const NO_VALUE = ['IS NULL', 'IS NOT NULL']
+const NO_VALUE = ['IS NULL', 'IS NOT NULL', 'IS EMPTY', 'IS NOT EMPTY']
 
 export function FilterPanel(props: {
   dialect: Dialect
@@ -23,6 +23,7 @@ export function FilterPanel(props: {
   onApply: (f: Filter[], join: 'AND' | 'OR') => void
   onClose: () => void
   defaults: { column: string; op: string }
+  onFind?: () => void
 }): ReactNode {
   const { filters, onChange } = props
   const rowRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -60,6 +61,7 @@ export function FilterPanel(props: {
             }}
           >
             <input type="checkbox" aria-label="Use this filter" checked={f.enabled} onChange={(e) => set(f.id, { enabled: e.target.checked })} />
+            <button className={`btn sm ${f.not ? 'on' : ''}`} aria-pressed={!!f.not} title="Negate this condition: NOT (…)" onClick={() => set(f.id, { not: !f.not })}>NOT</button>
             <select className="select sm" aria-label="Column" style={{ maxWidth: 200 }} value={f.column} onChange={(e) => set(f.id, { column: e.target.value })}>
               <option value="__any__">Any column</option>
               <option value="__raw__">Raw SQL</option>
@@ -90,6 +92,7 @@ export function FilterPanel(props: {
       })}
       <div className="row" style={{ justifyContent: 'flex-end' }}>
         <span className="faint" style={{ fontSize: 'var(--fs-xs)', marginRight: 'auto' }}>{filters.filter((f) => f.enabled).length} of {filters.length} checked · joined with {props.join}</span>
+        {props.onFind && <button className="btn sm ghost" title="Find and replace in loaded rows" onClick={props.onFind}><Icon name="search" size={10} /> Find</button>}
         <button className="btn sm ghost" onClick={(e) => menuBelow(e.currentTarget, [{ header: 'Generated condition' }, { label: whereSql(props.dialect, filters, props.join, props.columns).replace(/^ WHERE /, '') || '(none)', onClick: () => void navigator.clipboard.writeText(whereSql(props.dialect, filters, props.join, props.columns)) }])}>SQL</button>
         <button className="btn sm ghost" onClick={() => { onChange([newFilter(props.columns, props.defaults.column, props.defaults.op)]); props.onApply([], props.join) }}>Clear</button>
         <div className="seg">

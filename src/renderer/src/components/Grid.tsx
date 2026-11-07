@@ -28,12 +28,14 @@ interface Props {
   onEdit?: (r: number, c: number, v: CellValue) => void
   onCellMenu?: (e: RME, r: number, c: number) => void
   onFk?: (r: number, c: number) => void
+  onFkPick?: (r: number, c: number) => void // shows a "choose value" button in the editor of fk columns
   onSelect?: (s: Sel | null) => void
   onKey?: (e: React.KeyboardEvent, s: Sel | null) => boolean | void
   onCopy?: (e: ClipboardEvent, s: Sel) => void
   onPaste?: (e: ClipboardEvent, s: Sel | null) => void
   onFocus?: () => void
   onDoubleClickCell?: (r: number, c: number) => boolean | void
+  onActivate?: (r: number, c: number) => void // double-click on a read-only grid
   empty?: ReactNode
 }
 
@@ -240,7 +242,7 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
                       setSel(e.shiftKey && sel ? { ...sel, r1: r, c1: ci } : { r0: r, c0: ci, r1: r, c1: ci })
                     }}
                     onMouseEnter={() => { if (dragging.current && sel) setSel({ ...sel, r1: r, c1: ci }) }}
-                    onDoubleClick={() => startEdit(r, ci)}
+                    onDoubleClick={() => (p.editable ? startEdit(r, ci) : p.onActivate?.(r, ci))}
                     onContextMenu={(e) => p.onCellMenu?.(e, r, ci)}
                   >
                     {c.fk && !isNull && !isNew && (
@@ -269,6 +271,16 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
               else if (e.key === 'Escape') { setEditing(null); scroller.current?.focus() }
             }}
           />
+        )}
+        {editing && p.onFkPick && p.columns[editing.c]?.fk && (
+          <button
+            className="btn sm icon"
+            title="Choose from referenced table (⇧⌘↩)"
+            aria-label="Choose from referenced table"
+            style={{ position: 'absolute', zIndex: 5, top: editing.r * rowH + 1, left: numW + lefts[editing.c] + Math.max(colWidths[editing.c], 160) - 22, height: rowH - 2 }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { const { r, c } = editing; setEditing(null); p.onFkPick?.(r, c) }}
+          ><Icon name="more" size={11} /></button>
         )}
       </div>
       {!p.rows.length && p.empty && <div className="empty" style={{ position: 'absolute', inset: '40px 0 auto 0' }}>{p.empty}</div>}

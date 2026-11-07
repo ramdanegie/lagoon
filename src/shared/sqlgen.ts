@@ -42,6 +42,9 @@ function cond(d: Dialect, col: string, f: Filter, type: string | undefined, anyC
   switch (f.op) {
     case 'IS NULL': return `${col} IS NULL`
     case 'IS NOT NULL': return `${col} IS NOT NULL`
+    // text cast so non-text columns compare safely (PG would reject int = '', MySQL would coerce '' to 0)
+    case 'IS EMPTY': return `${textCast(d, col)} = ''`
+    case 'IS NOT EMPTY': return `${textCast(d, col)} <> ''`
     case 'IN':
     case 'NOT IN': {
       const items = v.split(',').map((x) => x.trim()).filter((x) => x !== '')
@@ -70,6 +73,11 @@ function cond(d: Dialect, col: string, f: Filter, type: string | undefined, anyC
 const unquote = (s: string): string => (/^'.*'$/.test(s) ? s.slice(1, -1).replace(/''/g, "'") : s)
 
 export function filterSql(d: Dialect, f: Filter, columns: Pick<Column, 'name' | 'type'>[]): string {
+  const s = filterCond(d, f, columns)
+  return f.not && s ? `NOT (${s})` : s
+}
+
+function filterCond(d: Dialect, f: Filter, columns: Pick<Column, 'name' | 'type'>[]): string {
   if (f.column === '__raw__') return f.value.trim() ? `(${f.value})` : ''
   if (f.column === '__any__') {
     if (f.op === 'IS NULL' || f.op === 'IS NOT NULL')
@@ -218,9 +226,9 @@ export const cloneTableSql = (d: Dialect, schema: string, from: string, to: stri
 }
 
 export const FILTER_OPS: Record<Dialect, string[]> = {
-  sqlite: ['=', '<>', '<', '>', '<=', '>=', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL', 'BETWEEN', 'NOT BETWEEN', 'LIKE', 'Contains', 'Not contains', 'Has prefix', 'Has suffix'],
-  mysql: ['=', '<>', '<', '>', '<=', '>=', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL', 'BETWEEN', 'NOT BETWEEN', 'LIKE', 'Contains', 'Not contains', 'Has prefix', 'Has suffix'],
-  postgres: ['=', '<>', '<', '>', '<=', '>=', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL', 'BETWEEN', 'NOT BETWEEN', 'LIKE', 'ILIKE', 'Contains', 'Not contains', 'Has prefix', 'Has suffix', 'Contains (ci)', 'Not contains (ci)', 'Has prefix (ci)', 'Has suffix (ci)']
+  sqlite: ['=', '<>', '<', '>', '<=', '>=', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL', 'IS EMPTY', 'IS NOT EMPTY', 'BETWEEN', 'NOT BETWEEN', 'LIKE', 'Contains', 'Not contains', 'Has prefix', 'Has suffix'],
+  mysql: ['=', '<>', '<', '>', '<=', '>=', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL', 'IS EMPTY', 'IS NOT EMPTY', 'BETWEEN', 'NOT BETWEEN', 'LIKE', 'Contains', 'Not contains', 'Has prefix', 'Has suffix'],
+  postgres: ['=', '<>', '<', '>', '<=', '>=', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL', 'IS EMPTY', 'IS NOT EMPTY', 'BETWEEN', 'NOT BETWEEN', 'LIKE', 'ILIKE', 'Contains', 'Not contains', 'Has prefix', 'Has suffix', 'Contains (ci)', 'Not contains (ci)', 'Has prefix (ci)', 'Has suffix (ci)']
 }
 
 export const TYPE_LIST: Record<Dialect, string[]> = {

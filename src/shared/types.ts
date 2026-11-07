@@ -126,6 +126,7 @@ export type FilterOp =
   | 'IN' | 'NOT IN' | 'IS NULL' | 'IS NOT NULL' | 'BETWEEN' | 'NOT BETWEEN'
   | 'LIKE' | 'ILIKE' | 'Contains' | 'Not contains' | 'Has prefix' | 'Has suffix'
   | 'Contains (ci)' | 'Not contains (ci)' | 'Has prefix (ci)' | 'Has suffix (ci)'
+  | 'IS EMPTY' | 'IS NOT EMPTY'
 
 export interface Filter {
   id: string
@@ -133,6 +134,7 @@ export interface Filter {
   column: string // column name | '__any__' | '__raw__'
   op: FilterOp
   value: string
+  not?: boolean // wrap the condition in NOT (…)
 }
 
 export interface SortSpec { column: string; dir: 'ASC' | 'DESC' }

@@ -1,18 +1,21 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Column, Filter, FilterOp, ForeignKey, Index, Result, SortSpec, TableQuery } from '@shared/types'
-import { deleteSql, insertSql, updateSql, type CellValue } from '@shared/sqlgen'
+import { countSql, deleteSql, insertSql, updateSql, type CellValue } from '@shared/sqlgen'
 import { call, errText, focusScope, setting, toast, useCommands, useSetting } from '../lib/api'
 import { useWs, setWs, ws, openTab, registerTabApi, bumpPending, guard, busy, updateTab, type Tab } from '../lib/ws'
 import { COPY_FORMATS, formatRows, parseCsv, display } from '../lib/format'
 import { pluginMenuItems } from '../lib/plugins'
 import { Grid, type GridColumn, type GridHandle, type Sel } from '../components/Grid'
 import { Icon } from '../components/Icon'
-import { Popover, menuAt, openMenu, promptDialog, type MenuItem } from '../components/ui'
+import { Popover, confirmDialog, menuAt, menuBelow, openMenu, promptDialog, type MenuItem } from '../components/ui'
 import { FilterPanel, newFilter } from './Filters'
 import { RowDetail } from './RowDetail'
 import { QuickLook } from './QuickLook'
 import { Structure, type StructureApi } from './Structure'
 import { ExportResultDialog } from './ImportExport'
+import { FkPicker } from './FkPicker'
+import { GridFind } from './GridFind'
+import { deleteProfile, profilesKey, renameProfile, saveProfile, type ProfileMap, type TableProfile } from '../lib/profiles'
 
 interface Snapshot { edits: Map<number, Map<number, CellValue>>; deleted: Set<number>; inserted: unknown[][] }
 const cloneSnap = (s: Snapshot): Snapshot => ({ edits: new Map([...s.edits].map(([k, v]) => [k, new Map(v)])), deleted: new Set(s.deleted), inserted: s.inserted.map((r) => [...r]) })
@@ -58,6 +61,13 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
   const [pop, setPop] = useState<{ kind: 'columns' | 'page'; el: HTMLElement } | null>(null)
   const [exporting, setExporting] = useState(false)
   const [ready, setReady] = useState(false)
+  const [picker, setPicker] = useState<{ fk: ForeignKey; r: number; c: number; rows: number[] } | null>(null)
+  const [finding, setFinding] = useState(false)
+  const [hist, setHist] = useState<{ at: number; sql: string }[]>([])
+  const [showHist, setShowHist] = useState(false)
+  const [profiles, setProfiles] = useSetting<ProfileMap>(profilesKey(s.conn?.id ?? ''), {})
+  // shortcut: keeps the last 500 statements per tab, raise if users need longer sessions
+  const logSql = useCallback((...sql: string[]) => setHist((h) => [...h, ...sql.map((x) => ({ at: Date.now(), sql: x }))].slice(-500)), [])
   const view = tab.isNew ? 'structure' : tab.view ?? 'data'
   const grid = useRef<GridHandle>(null)
   const structApi = useRef<StructureApi | null>(null)
@@ -130,6 +140,7 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
       setResCols(r.columns.map((c) => c.name))
       setBase(r.rows)
       setLastSql(r.sql)
+      logSql(r.sql)
       setSnap({ edits: new Map(), deleted: new Set(), inserted: [] })
       undo.current = []
       redo.current = []
@@ -138,7 +149,7 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
       const filtered = applied.some((f) => f.enabled)
       const est = filtered || isView ? null : await call<number | null>('db.estimate', s.sessionId, schema, name).catch(() => null)
       if (est !== null && estimateOver > 0 && est > estimateOver) setCount({ n: est, estimated: true })
-      else setCount({ n: await call<number>('db.count', s.sessionId, query(), colTypes()), estimated: false })
+      else { logSql(countSql(d, query(), colTypes())); setCount({ n: await call<number>('db.count', s.sessionId, query(), colTypes()), estimated: false }) }
     } catch (e) {
       setError(errText(e))
     } finally {
@@ -194,6 +205,7 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
     if (!stmts.length) return true
     if (!(await guard(stmts))) return false
     const r = await busy(call<{ ok: boolean; index?: number; error?: string }>('db.commit', s.sessionId, stmts))
+    logSql(...(r.ok ? stmts : [...stmts.slice(0, (r.index ?? 0) + 1), `-- failed and rolled back: ${r.error}`]))
     if (!r.ok) { toast(`Commit failed at statement ${(r.index ?? 0) + 1}:\n${r.error}\n\n${stmts[r.index ?? 0]}`, 'error', 12000); return false }
     toast(`${stmts.length} change${stmts.length > 1 ? 's' : ''} committed`, 'success')
     await load()
@@ -226,13 +238,16 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
     setTimeout(bumpPending)
   }
 
-  const setCell = (r: number, c: number, v: CellValue): void => mutate((x) => {
-    const m = x.edits.get(r) ?? new Map()
-    const orig = r < base.length ? base[r][c] : undefined
-    if (r < base.length && typeof v !== 'object' && v !== null && String(orig ?? '') === v && orig !== null) m.delete(c)
-    else m.set(c, v)
-    if (m.size) x.edits.set(r, m); else x.edits.delete(r)
+  const setCells = (cells: [number, number, CellValue][]): void => mutate((x) => {
+    for (const [r, c, v] of cells) {
+      const m = x.edits.get(r) ?? new Map()
+      const orig = r < base.length ? base[r][c] : undefined
+      if (r < base.length && typeof v !== 'object' && v !== null && String(orig ?? '') === v && orig !== null) m.delete(c)
+      else m.set(c, v)
+      if (m.size) x.edits.set(r, m); else x.edits.delete(r)
+    }
   })
+  const setCell = (r: number, c: number, v: CellValue): void => setCells([[r, c, v]])
 
   const selectedRows = (): number[] => (sel ? Array.from({ length: sel.r1 - sel.r0 + 1 }, (_, i) => sel.r0 + i) : [])
   const valueAt = (r: number, c: number): unknown => (snap.edits.get(r)?.has(c) ? snap.edits.get(r)!.get(c) : rows[r]?.[c])
@@ -342,11 +357,20 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
     openTab({ kind: 'table', title: fk.refTable, schema: fk.refSchema || schema, name: fk.refTable, objKind: 'table', initialFilter: { column: fk.refColumns[0], op: '=', value: String(valueAt(r, c)) } }, { newTab: true })
   }
 
+  const fkOf = (c: number): ForeignKey | undefined => fks.find((f) => f.columns.length === 1 && f.columns[0] === resCols[c])
+  const openPicker = (r: number, c: number): void => {
+    const fk = fkOf(c)
+    if (!fk || !editable || snap.deleted.has(r)) return
+    setPicker({ fk, r, c, rows: sel && r >= sel.r0 && r <= sel.r1 ? selectedRows() : [r] })
+  }
+
   const setValueMenu = (r: number, c: number): MenuItem[] => {
     const t = meta(resCols[c])?.type ?? ''
     const rs = sel && r >= sel.r0 && r <= sel.r1 ? selectedRows() : [r]
     const all = (v: CellValue): void => mutate((x) => rs.forEach((rr) => { const m = x.edits.get(rr) ?? new Map(); m.set(c, v); x.edits.set(rr, m) }))
+    const fk = fkOf(c)
     return [
+      ...(fk ? [{ label: `Choose from ${fk.refTable}…`, kbd: '⇧⌘↩', onClick: () => openPicker(r, c) }, { sep: true }] : []),
       { label: 'NULL', onClick: () => all(null) },
       { label: 'Empty string', onClick: () => all('') },
       { label: 'DEFAULT', onClick: () => all({ raw: 'DEFAULT' }) },
@@ -391,6 +415,8 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
         { label: 'Remove Sort', onClick: () => { setSort([]); saveState({ sort: [] }) } }
       ] },
       ...(fkCols.has(col) && lit !== null ? [{ label: 'Open Referenced Row', onClick: () => followFk(r, c) }] : []),
+      ...(fkCols.has(col) && editable ? [{ label: `Choose from ${fkOf(c)?.refTable}…`, kbd: '⇧⌘↩', onClick: () => openPicker(r, c) }] : []),
+      { label: 'Find & Replace…', onClick: () => setFinding(true) },
       { sep: true },
       ...(editable ? [
         { label: 'Add Row', kbd: '⌘I', onClick: () => addRow() },
@@ -424,6 +450,35 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
     { label: 'Copy Column Name', onClick: () => void navigator.clipboard.writeText(col) }
   ])
 
+  // ---------- profiles ----------
+  const tableProfiles = profiles[stateKey] ?? []
+  const applyProfile = (p: TableProfile): void => {
+    const has = (n: string): boolean => cols.some((c) => c.name === n)
+    const f = p.filters.length ? p.filters : [newFilter(cols, setting('filter.defaultColumn', 'pk'), setting('filter.defaultOp', '='))]
+    const v = p.visible ? p.visible.filter(has) : null
+    const so = p.sort.filter((x) => has(x.column))
+    const show = p.applied.some((x) => x.enabled) || showFilters
+    setFilters(f); setApplied(p.applied); setJoin(p.join); setSort(so); setVisible(v); setWidths(p.widths); setOffset(0); setShowFilters(show)
+    saveState({ filters: f, applied: p.applied, join: p.join, sort: so, visible: v, widths: p.widths, showFilters: show })
+    toast(`Profile “${p.name}” applied`)
+  }
+  const saveAsProfile = async (): Promise<void> => {
+    const n = (await promptDialog('Save view as profile', '', { message: 'Saves the filters, sort, visible columns and column widths of this table. An existing profile with the same name is replaced.', ok: 'Save' }))?.trim()
+    if (!n) return
+    setProfiles(saveProfile(profiles, stateKey, { name: n, filters, applied, join, sort, visible, widths }))
+    toast(`Profile “${n}” saved`, 'success')
+  }
+  const profileMenu = (el: HTMLElement): void => menuBelow(el, [
+    ...(tableProfiles.length ? [{ header: 'Apply profile' }, ...tableProfiles.map((p) => ({ label: p.name, onClick: () => applyProfile(p) }))] : [{ header: 'No profiles for this table yet' }]),
+    { sep: true },
+    { label: 'Save Current View as Profile…', onClick: () => void saveAsProfile() },
+    ...(tableProfiles.length ? [
+      { label: 'Update with Current View', submenu: tableProfiles.map((p) => ({ label: p.name, onClick: () => { setProfiles(saveProfile(profiles, stateKey, { name: p.name, filters, applied, join, sort, visible, widths })); toast(`Profile “${p.name}” updated`, 'success') } })) },
+      { label: 'Rename', submenu: tableProfiles.map((p) => ({ label: p.name, onClick: async () => { const n = (await promptDialog('Rename profile', p.name, { ok: 'Rename' }))?.trim(); if (n) setProfiles(renameProfile(profiles, stateKey, p.name, n)) } })) },
+      { label: 'Delete', submenu: tableProfiles.map((p) => ({ label: p.name, danger: true, onClick: async () => { if (await confirmDialog(`Delete profile “${p.name}”?`, undefined, { ok: 'Delete', danger: true })) setProfiles(deleteProfile(profiles, stateKey, p.name)) } })) }
+    ] : [])
+  ])
+
   useCommands(`table-${tab.id}`, {
     'edit.addRow': () => { if (view === 'data' && editable) addRow(); else if (view !== 'data') structApi.current?.add(); else return false; return true },
     'edit.duplicate': () => { if (view === 'data' && editable) duplicate() },
@@ -436,6 +491,8 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
     'nav.showData': () => updateTab(tab.id, { view: 'data' }),
     'nav.showStructure': () => updateTab(tab.id, { view: 'structure' }),
     'query.runCurrent': () => { if (view === 'data' && sel) setQuick({ r: sel.r1, c: sel.c1 }) },
+    // ⇧⌘↩ is the menu accelerator for "run all"; in a table it opens the FK value picker
+    'query.runAll': () => { if (ws().active !== tab.id || view !== 'data' || !sel || !fkOf(sel.c1)) return false; openPicker(sel.r1, sel.c1); return true },
     'conn.reloadTab': () => void load()
   })
 
@@ -447,6 +504,7 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
       openMenu(setValueMenu(sl.r1, sl.c1), cell?.left ?? 200, cell?.bottom ?? 200)
       return true
     }
+    if (e.key === 'Enter' && e.shiftKey && (e.metaKey || e.ctrlKey) && sl && fkOf(sl.c1)) { openPicker(sl.r1, sl.c1); return true }
     if (e.key === 'ArrowRight' && (e.metaKey || e.ctrlKey)) { nextPage(); return true }
     if (e.key === 'ArrowLeft' && (e.metaKey || e.ctrlKey)) { prevPage(); return true }
     return false
@@ -475,6 +533,20 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
                   onApply={applyFilters}
                   onClose={() => { setShowFilters(false); saveState({ showFilters: false }); grid.current?.focus() }}
                   defaults={{ column: setting('filter.defaultColumn', 'pk'), op: setting('filter.defaultOp', '=') }}
+                  onFind={() => setFinding(true)}
+                />
+              )}
+              {finding && (
+                <GridFind
+                  columns={gridCols}
+                  rowCount={rows.length}
+                  valueAt={valueAt}
+                  sel={sel}
+                  editable={editable}
+                  isDeleted={(r) => snap.deleted.has(r)}
+                  onSelect={(x) => grid.current?.setSelection(x)}
+                  onReplace={setCells}
+                  onClose={() => { setFinding(false); grid.current?.focus() }}
                 />
               )}
               {error ? (
@@ -496,6 +568,7 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
                   onEdit={setCell}
                   onCellMenu={cellMenu}
                   onFk={followFk}
+                  onFkPick={openPicker}
                   onSelect={setSel}
                   onKey={gridKey}
                   onCopy={(ev) => ev.clipboardData?.setData('text/plain', formatRows('csv', resCols, selectedRows().map(rowValues)))}
@@ -520,6 +593,23 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
           </div>
         )}
       </div>
+      {showHist && view === 'data' && (
+        <div className="console" role="log" aria-label="SQL sent by this tab">
+          <div className="row" style={{ fontFamily: 'var(--font-ui)', marginBottom: 'var(--sp-2)' }}>
+            <b className="grow">SQL sent by this tab this session ({hist.length})</b>
+            <button className="btn sm ghost" disabled={!hist.length} onClick={() => void navigator.clipboard.writeText(hist.map((h) => h.sql.replace(/;?\s*$/, ';')).join('\n'))}>Copy All</button>
+            <button className="btn sm ghost" disabled={!hist.length} onClick={() => setHist([])}>Clear</button>
+            <button className="btn sm icon" aria-label="Hide history" onClick={() => setShowHist(false)}><Icon name="x" size={10} /></button>
+          </div>
+          {[...hist].reverse().map((h, i) => (
+            <div key={hist.length - i} className="row" style={{ alignItems: 'flex-start' }}>
+              <span className="time">{new Date(h.at).toLocaleTimeString()}</span>
+              <span className="grow" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{h.sql}</span>
+              <button className="btn sm ghost" style={{ flex: 'none' }} title="Copy statement" onClick={() => void navigator.clipboard.writeText(h.sql)}>Copy</button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="bottombar">
         <div className="seg" role="tablist" aria-label="Table view">
           <button role="tab" aria-selected={view === 'data'} className={view === 'data' ? 'on' : ''} disabled={tab.isNew} onClick={() => updateTab(tab.id, { view: 'data' })}>Data</button>
@@ -531,13 +621,16 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
             <button className="btn sm" disabled={!editable} title="Add row (⌘I)" onClick={() => addRow()}><Icon name="plus" size={11} /> Row</button>
             <button id={`cols-btn-${tab.id}`} className={`btn sm ${visible ? 'on' : ''}`} title="Choose columns (⌥⌘F)" onClick={(e) => setPop({ kind: 'columns', el: e.currentTarget })}><Icon name="columns" size={11} /> Columns</button>
             <button className={`btn sm ${showFilters || applied.some((f) => f.enabled) ? 'on' : ''}`} title="Filters (⌘F)" onClick={() => { setShowFilters(!showFilters); saveState({ showFilters: !showFilters }) }}><Icon name="filter" size={11} /> Filters{applied.filter((f) => f.enabled).length ? ` (${applied.filter((f) => f.enabled).length})` : ''}</button>
+            <button className={`btn sm ${finding ? 'on' : ''}`} title="Find and replace in loaded rows" onClick={() => setFinding(!finding)}><Icon name="search" size={11} /> Find</button>
+            <button className={`btn sm ${(profiles[stateKey] ?? []).length ? 'on' : ''}`} title="Saved filters, sort and column layouts for this table" onClick={(e) => profileMenu(e.currentTarget)}><Icon name="star" size={11} /> Profiles{(profiles[stateKey] ?? []).length ? ` (${(profiles[stateKey] ?? []).length})` : ''}</button>
+            <button className={`btn sm ${showHist ? 'on' : ''}`} title="SQL sent by this tab this session" onClick={() => setShowHist(!showHist)}><Icon name="history" size={11} /> History</button>
             {!editable && !loading && !isView && <span className="faint" title="No primary key or unique key: rows cannot be identified safely">Read-only (no key)</span>}
             {pending > 0 && <span style={{ color: 'var(--warning)' }}>{pending} pending</span>}
             <span className="grow" />
             <span className="muted">
               {loading ? 'Loading…' : count ? (
                 count.estimated
-                  ? <button className="btn sm ghost" title="Estimated. Click for the exact count." onClick={async () => setCount({ n: await call<number>('db.count', s.sessionId, query(), colTypes()), estimated: false })}>~{count.n.toLocaleString()} rows</button>
+                  ? <button className="btn sm ghost" title="Estimated. Click for the exact count." onClick={async () => { logSql(countSql(d, query(), colTypes())); setCount({ n: await call<number>('db.count', s.sessionId, query(), colTypes()), estimated: false }) }}>~{count.n.toLocaleString()} rows</button>
                   : `${count.n === 0 ? 0 : offset + 1}–${Math.min(offset + base.length, count.n).toLocaleString()} of ${count.n.toLocaleString()} rows`
               ) : ''}
             </span>
@@ -579,6 +672,17 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
           readOnly={!editable || snap.deleted.has(quick.r)}
           onSave={(v) => setCell(quick.r, quick.c, v)}
           onClose={() => { setQuick(null); grid.current?.focus() }}
+        />
+      )}
+      {picker && (
+        <FkPicker
+          sessionId={s.sessionId!}
+          schema={schema}
+          fk={picker.fk}
+          current={valueAt(picker.r, picker.c)}
+          onSql={logSql}
+          onPick={(v) => { setCells(picker.rows.map((r) => [r, picker.c, v === null || v === undefined ? null : display(v)])); setPicker(null); grid.current?.focus() }}
+          onClose={() => { setPicker(null); grid.current?.focus() }}
         />
       )}
       {exporting && <ExportResultDialog title={name} columns={resCols} rows={rows.map((_, r) => rowValues(r))} table={name} onClose={() => setExporting(false)} />}
