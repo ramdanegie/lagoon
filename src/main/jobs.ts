@@ -4,7 +4,6 @@ import { createWriteStream, readFileSync, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { createGzip } from 'zlib'
 import { pipeline } from 'stream/promises'
-import ExcelJS from 'exceljs'
 import type { Column, DbObject, Dialect, JobProgress } from '@shared/types'
 import { selectSql, createTableSql, isNumericType, qt, type CellValue } from '@shared/sqlgen'
 import { splitStatements } from '@shared/split'
@@ -214,6 +213,7 @@ async function writeText(path: string, gen: AsyncIterable<string>, gzip = false)
 const sheetName = (s: string): string => s.replace(/[[\]:*?/\\]/g, '_').slice(0, 31) || 'Sheet1'
 
 async function writeXlsx(path: string, sheet: string, names: string[], numeric: boolean[], pages: Pages): Promise<void> {
+  const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ filename: path, useStyles: true })
   const ws = wb.addWorksheet(sheetName(sheet))
   let started = false

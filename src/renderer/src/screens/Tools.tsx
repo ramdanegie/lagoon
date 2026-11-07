@@ -1,14 +1,18 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, Suspense, lazy, useEffect, useState } from 'react'
 import type { DbObject } from '@shared/types'
 import { tip, toast, useCommands } from '../lib/api'
 import { useWs, setWs, ws, openTab } from '../lib/ws'
 import { pluginMenuItems } from '../lib/plugins'
 import { Icon } from '../components/Icon'
 import { menuBelow } from '../components/ui'
-import { ProcessList } from './ProcessList'
-import { PluginManager } from './PluginManager'
-import { ImportDialog, ExportDialog, Notifications } from './ImportExport'
-import { BackupDialog, RestoreDialog } from './Backup'
+import { Notifications } from './ImportExport'
+
+const ProcessList = lazy(() => import('./ProcessList').then((m) => ({ default: m.ProcessList })))
+const PluginManager = lazy(() => import('./PluginManager').then((m) => ({ default: m.PluginManager })))
+const ImportDialog = lazy(() => import('./ImportExport').then((m) => ({ default: m.ImportDialog })))
+const ExportDialog = lazy(() => import('./ImportExport').then((m) => ({ default: m.ExportDialog })))
+const BackupDialog = lazy(() => import('./Backup').then((m) => ({ default: m.BackupDialog })))
+const RestoreDialog = lazy(() => import('./Backup').then((m) => ({ default: m.RestoreDialog })))
 
 type Dlg = { kind: 'process' } | { kind: 'plugins' } | { kind: 'import'; format: 'csv' | 'json' | 'sql'; table?: DbObject } | { kind: 'export'; items: DbObject[] } | { kind: 'backup' } | { kind: 'restore' } | null
 
@@ -73,12 +77,14 @@ export function Tools(): ReactNode {
       >
         <Icon name="gear" />
       </button>
+      <Suspense fallback={null}>
       {dlg?.kind === 'process' && <ProcessList onClose={() => setDlg(null)} />}
       {dlg?.kind === 'plugins' && <PluginManager onClose={() => setDlg(null)} />}
       {dlg?.kind === 'import' && <ImportDialog kind={dlg.format} table={dlg.table} onClose={() => setDlg(null)} />}
       {dlg?.kind === 'export' && <ExportDialog items={dlg.items} onClose={() => setDlg(null)} />}
       {dlg?.kind === 'backup' && <BackupDialog connections={conn ? [conn] : []} onClose={() => setDlg(null)} />}
       {dlg?.kind === 'restore' && <RestoreDialog connections={conn ? [conn] : []} onClose={() => setDlg(null)} />}
+      </Suspense>
     </>
   )
 }

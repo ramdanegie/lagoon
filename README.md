@@ -57,6 +57,17 @@ Everything is free and open source. No account, no telemetry, no feature limits:
   <img src="docs/images/S39-mongo.png" width="420" alt="MongoDB collection">
 </p>
 
+## Light on your Mac
+
+Lagoon is built on Electron, but tuned to stay small. Measured on an Apple Silicon Mac with `node test/perf/measure.mjs --compare` (memory as Activity Monitor reports it, all processes summed):
+
+| | Idle | One 10,000-row table open | Scrolling |
+|---|---|---|---|
+| **Lagoon** | **111 MB** | 187 MB | 120 fps |
+| Navicat Premium Lite 17.3.11 | 129 MB | – | – |
+
+How: database drivers, SSH, Excel export, the SQL editor and charts load only when you first use them; the Welcome window never parses the editor; the grid renders only the rows on screen; rasterizing on the CPU keeps the GPU process small without dropping frames. A native Swift app like TablePlus still uses less (about 60 MB idle); Lagoon trades a little memory for running on macOS, Windows and Linux from one codebase.
+
 ## Install
 
 1. Download the latest release for your platform from [Releases](https://github.com/ramdanegie/lagoon/releases): `.dmg` for macOS, `.exe` for Windows, `.AppImage` for Linux.

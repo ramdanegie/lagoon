@@ -1,5 +1,5 @@
 // Open connections: password resolution, SSH tunnel, driver construction, console logging, keep-alive.
-import { Client as SshClient } from 'ssh2'
+import type { Client as SshClient } from 'ssh2'
 import { createServer, type Server, type AddressInfo } from 'net'
 import { readFileSync, existsSync } from 'fs'
 import { homedir } from 'os'
@@ -11,11 +11,8 @@ import type { Connection, ServerInfo } from '@shared/types'
 import { DRIVERS } from '@shared/types'
 import { getConnection, secretsOf, getSetting, setSetting } from './store'
 import type { ConnectParams, SqlDriver } from './drivers/types'
-import { PostgresDriver } from './drivers/postgres'
-import { MysqlDriver } from './drivers/mysql'
-import { SqliteDriver } from './drivers/sqlite'
-import { RedisDriver } from './drivers/redis'
-import { MongoDriver } from './drivers/mongo'
+import type { RedisDriver } from './drivers/redis'
+import type { MongoDriver } from './drivers/mongo'
 
 export type AnyDriver = (SqlDriver & { onSql: (s: string) => void }) | RedisDriver | MongoDriver
 
@@ -70,7 +67,9 @@ export async function openTunnel(c: Connection, sshPassword?: string, passphrase
   const s = c.ssh!
   const cfg = sshConfigFor(s.host)
   const keyPath = s.useKey ? (s.keyPath ? expandHome(s.keyPath) : cfg.identityFile ?? defaultKey()) : undefined
-  const ssh = new SshClient()
+  // ssh2 and the drivers load on first use: keeps startup memory low for people who never use them
+  const { Client } = await import('ssh2')
+  const ssh = new Client()
   const hostKeyId = `ssh.knownHost.${s.host}:${s.port || 22}`
   await new Promise<void>((resolve, reject) => {
     ssh.once('ready', () => resolve()).once('error', reject).connect({
@@ -133,11 +132,11 @@ export async function buildDriver(c: Connection, secrets: { password?: string; s
     ssl: c.ssl && c.ssl.mode ? { mode: c.ssl.mode, ca: readFile(c.ssl.caPath), cert: readFile(c.ssl.certPath), key: readFile(c.ssl.keyPath) } : undefined
   }
   const driver: AnyDriver =
-    c.driver === 'postgres' ? new PostgresDriver(p)
-      : c.driver === 'mysql' || c.driver === 'mariadb' ? new MysqlDriver(p)
-        : c.driver === 'sqlite' ? new SqliteDriver(p)
-          : c.driver === 'redis' ? new RedisDriver(p)
-            : new MongoDriver(p, /^mongodb(\+srv)?:\/\//.test(c.host ?? '') ? c.host : undefined)
+    c.driver === 'postgres' ? new (await import('./drivers/postgres')).PostgresDriver(p)
+      : c.driver === 'mysql' || c.driver === 'mariadb' ? new (await import('./drivers/mysql')).MysqlDriver(p)
+        : c.driver === 'sqlite' ? new (await import('./drivers/sqlite')).SqliteDriver(p)
+          : c.driver === 'redis' ? new (await import('./drivers/redis')).RedisDriver(p)
+            : new (await import('./drivers/mongo')).MongoDriver(p, /^mongodb(\+srv)?:\/\//.test(c.host ?? '') ? c.host : undefined)
   try {
     await driver.connect()
   } catch (e) {

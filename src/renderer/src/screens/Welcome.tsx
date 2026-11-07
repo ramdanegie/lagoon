@@ -1,12 +1,14 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import type { Connection, DriverId, Group, Tag } from '@shared/types'
 import { DRIVERS } from '@shared/types'
 import { call, fail, toast, useCommands, useSetting } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { Modal, confirmDialog, menuAt, promptDialog, type MenuItem } from '../components/ui'
 import { ConnectionForm, DriverPicker, UrlImport, DRIVER_COLORS } from './ConnectionForm'
-import { BackupDialog, RestoreDialog } from './Backup'
 import appIcon from '../assets/icon.png'
+
+const BackupDialog = lazy(() => import('./Backup').then((m) => ({ default: m.BackupDialog })))
+const RestoreDialog = lazy(() => import('./Backup').then((m) => ({ default: m.RestoreDialog })))
 
 type FormState = { step: 'driver' } | { step: 'url' } | { step: 'form'; initial: Partial<Connection> & { driver: DriverId } } | null
 
@@ -191,8 +193,10 @@ export function Welcome(): ReactNode {
         />
       )}
       {exportIds && <ExportConnections ids={exportIds} onClose={() => setExportIds(null)} />}
-      {tool === 'backup' && <BackupDialog onClose={() => setTool(null)} connections={conns} />}
-      {tool === 'restore' && <RestoreDialog onClose={() => setTool(null)} connections={conns} />}
+      <Suspense fallback={null}>
+        {tool === 'backup' && <BackupDialog onClose={() => setTool(null)} connections={conns} />}
+        {tool === 'restore' && <RestoreDialog onClose={() => setTool(null)} connections={conns} />}
+      </Suspense>
     </div>
   )
 }

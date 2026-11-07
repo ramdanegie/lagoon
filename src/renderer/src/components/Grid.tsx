@@ -166,7 +166,7 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
       onMouseUp={() => (dragging.current = false)}
     >
       <div className="grid-head" style={{ width: total }}>
-        <div className="grid-hcell" style={{ width: numW, position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-elev)' }} />
+        <div className="grid-hcell" style={{ width: numW, background: 'var(--bg-elev)' }} />
         {p.columns.map((c, i) => {
           const s = p.sort?.find((x) => x.column === c.name)
           return (

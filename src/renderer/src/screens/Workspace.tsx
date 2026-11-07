@@ -7,13 +7,13 @@ import { Icon } from '../components/Icon'
 import { Resizer, confirmDialog, menuAt, menuBelow, promptDialog } from '../components/ui'
 import { Sidebar } from './Sidebar'
 import { TableView } from './TableView'
-import { QueryEditor } from './QueryEditor'
-import { DdlTab } from './DdlTab'
 import { SafeModeHost, PreviewModal } from './SafeMode'
 import { Palette, DatabasePicker, ConnectionPicker } from './Palette'
 import { ConnectionForm } from './ConnectionForm'
 import { Tools } from './Tools'
 
+const QueryEditor = lazy(() => import('./QueryEditor').then((m) => ({ default: m.QueryEditor })))
+const DdlTab = lazy(() => import('./DdlTab').then((m) => ({ default: m.DdlTab })))
 const RedisBrowser = lazy(() => import('./RedisBrowser').then((m) => ({ default: m.RedisBrowser })))
 const MongoView = lazy(() => import('./MongoView').then((m) => ({ default: m.MongoView })))
 const MetricsBoard = lazy(() => import('./MetricsBoard').then((m) => ({ default: m.MetricsBoard })))
@@ -188,8 +188,8 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
   const renderTab = (t: Tab): ReactNode => {
     switch (t.kind) {
       case 'table': return <TableView key={t.id} tab={t} />
-      case 'query': return <QueryEditor key={t.id} tab={t} />
-      case 'ddl': return <DdlTab key={t.id} tab={t} />
+      case 'query': return <Suspense fallback={null}><QueryEditor key={t.id} tab={t} /></Suspense>
+      case 'ddl': return <Suspense fallback={null}><DdlTab key={t.id} tab={t} /></Suspense>
       case 'redis': return <Suspense fallback={null}><RedisBrowser key={t.id} tab={t} /></Suspense>
       case 'mongo': return <Suspense fallback={null}><MongoView key={t.id} tab={t} /></Suspense>
       case 'metrics': return <Suspense fallback={null}><MetricsBoard key={t.id} tab={t} /></Suspense>

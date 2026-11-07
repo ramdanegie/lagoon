@@ -57,6 +57,17 @@ Semuanya gratis dan open source. Tanpa akun, tanpa telemetri, tanpa batasan fitu
   <img src="docs/images/S39-mongo.png" width="420" alt="Koleksi MongoDB">
 </p>
 
+## Ringan di Mac-mu
+
+Lagoon dibangun dengan Electron, tetapi disetel agar tetap kecil. Diukur di Mac Apple Silicon dengan `node test/perf/measure.mjs --compare` (memori seperti yang ditampilkan Activity Monitor, semua proses dijumlahkan):
+
+| | Diam | Satu tabel 10.000 baris terbuka | Scroll |
+|---|---|---|---|
+| **Lagoon** | **111 MB** | 187 MB | 120 fps |
+| Navicat Premium Lite 17.3.11 | 129 MB | – | – |
+
+Caranya: driver database, SSH, ekspor Excel, editor SQL, dan chart baru dimuat saat pertama kali dipakai; jendela Welcome tidak pernah memuat editor; grid hanya merender baris yang terlihat di layar; raster di CPU menjaga proses GPU tetap kecil tanpa mengurangi frame. App Swift native seperti TablePlus masih lebih hemat (sekitar 60 MB saat diam); Lagoon menukar sedikit memori dengan kemampuan berjalan di macOS, Windows, dan Linux dari satu basis kode.
+
 ## Instalasi
 
 1. Unduh rilis terbaru untuk platformmu dari [Releases](https://github.com/ramdanegie/lagoon/releases): `.dmg` untuk macOS, `.exe` untuk Windows, `.AppImage` untuk Linux.

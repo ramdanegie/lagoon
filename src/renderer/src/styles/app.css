@@ -166,7 +166,7 @@ input, textarea, select, button { font: inherit; color: inherit; }
 .grid-cell.csel { background: var(--bg-selected); }
 .grid-cell.focus { box-shadow: inset 0 0 0 1.5px var(--focus); }
 .grid-cell.null > span.v { color: var(--null-fg); font-style: italic; }
-.grid-cell.rownum { color: var(--fg-faint); justify-content: flex-end; background: var(--bg-elev); position: sticky; left: 0; z-index: 1; font-size: var(--fs-xs); }
+.grid-cell.rownum { color: var(--fg-faint); justify-content: flex-end; background: var(--bg-elev); font-size: var(--fs-xs); }
 .grid-cell .fk { flex: none; opacity: 0.6; border: 0; background: transparent; padding: 0; color: var(--focus); }
 .grid-cell .fk:hover { opacity: 1; }
 .grid-editor { position: absolute; z-index: 4; border: 0; outline: 2px solid var(--focus); background: var(--bg-input); font-family: var(--font-mono); font-size: var(--grid-font-size); padding: 0 var(--sp-4); }

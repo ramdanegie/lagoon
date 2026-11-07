@@ -1,11 +1,11 @@
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, Suspense, lazy, useMemo, useState } from 'react'
 import type { Result } from '@shared/types'
 import { chartDirective } from '@shared/split'
 import { useWs } from '../lib/ws'
 import { COPY_FORMATS, formatRows, display } from '../lib/format'
 import { addToMetricsBoard } from '../lib/metrics'
 import { Grid, type Sel } from '../components/Grid'
-import { Chart } from '../components/Chart'
+const Chart = lazy(() => import('../components/Chart').then((m) => ({ default: m.Chart })))
 import { Icon } from '../components/Icon'
 import { menuAt } from '../components/ui'
 import { QuickLook } from './QuickLook'
@@ -147,7 +147,7 @@ function ResultView({ tab, onPin, running }: { tab: ResultTab; onPin: () => void
             <button className="btn sm" onClick={() => void addToMetricsBoard({ type: chart.type, label: tab.title, query: res.sql, x: chart.x, y: chart.y })}><Icon name="chart" size={11} /> Add to Metrics Board</button>
           </div>
           <div className="grow" style={{ minHeight: 0, padding: 'var(--sp-5)' }}>
-            <Chart type={chart.type} columns={res.columns} rows={res.rows} x={chart.x} y={chart.y} />
+            <Suspense fallback={null}><Chart type={chart.type} columns={res.columns} rows={res.rows} x={chart.x} y={chart.y} /></Suspense>
           </div>
         </div>
       )}

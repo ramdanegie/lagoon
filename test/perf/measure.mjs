@@ -30,6 +30,13 @@ function footprintOf(needle) {
   return Math.round(total)
 }
 
+function breakdown(needle) {
+  const lines = execSync('ps -axo pid=,command=', { encoding: 'utf8' }).split('\n').filter((l) => l.includes(needle) && !l.includes('ps -axo'))
+  const pids = lines.map((l) => l.trim().split(/\s+/)[0])
+  const top = execSync(`top -l 1 -stats pid,mem ${pids.map((p) => '-pid ' + p).join(' ')}`, { encoding: 'utf8' })
+  return Object.fromEntries(lines.map((l) => { const pid = l.trim().split(/\s+/)[0]; return [(/--type=(\S+)/.exec(l)?.[1] ?? 'main') + ':' + pid, new RegExp(`^\\s*${pid}\\s+(\\S+)`, 'm').exec(top)?.[1]] }))
+}
+
 function dirSize(d) {
   let n = 0
   for (const e of readdirSync(d, { withFileTypes: true })) n += e.isDirectory() ? dirSize(join(d, e.name)) : statSync(join(d, e.name)).size
@@ -59,12 +66,13 @@ results.idleWelcomeMB = { rss: mb(rssOf(needle)), footprint: footprintOf(needle)
 await welcome.evaluate((f) => window.api.call('window.open', { view: 'workspace', file: f }), dbFile)
 let ws
 for (let i = 0; i < 100 && !ws; i++) { ws = ea.windows().find((w) => w.url().includes('view=workspace')); if (!ws) await sleep(100) }
+await welcome.close() // the real connect flow closes the Welcome window
 const tOpen = Date.now()
 await ws.getByRole('treeitem', { name: 'big' }).click()
 await ws.getByText(/of 10,000 rows/).waitFor()
 results.openTable10kMs = Date.now() - tOpen
 await sleep(3000)
-results.workspaceWithTableMB = { rss: mb(rssOf(needle)), footprint: footprintOf(needle) }
+results.workspaceWithTableMB = { rss: mb(rssOf(needle)), footprint: footprintOf(needle), perProcess: breakdown(needle) }
 
 // scroll the grid for ~2s and record frame intervals
 results.scroll = await ws.evaluate(async () => {

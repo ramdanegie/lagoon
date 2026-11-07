@@ -9,6 +9,8 @@ export default defineConfig({
   preload: { resolve: { alias: shared } },
   renderer: {
     resolve: { alias: { ...shared, '@renderer': resolve('src/renderer/src') } },
-    plugins: [react()]
+    plugins: [react()],
+    // smaller, faster-to-parse renderer bundles; main stays readable for stack traces
+    build: { minify: true, reportCompressedSize: false }
   }
 })
