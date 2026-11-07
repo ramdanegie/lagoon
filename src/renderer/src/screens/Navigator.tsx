@@ -338,18 +338,19 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
       ['functions', 'Functions', list.filter((o) => o.kind === 'function' || o.kind === 'procedure')],
       ['sequences', 'Sequences', list.filter((o) => o.kind === 'sequence')]
     ]
-    if (sc.objectsLoading && !all.length) return [<div key="l" className="faint nav-note" style={{ paddingLeft: 18 + depth * 14 }}>Loading…</div>]
-    if (!all.length) return [<div key="e" className="faint nav-note" style={{ paddingLeft: 18 + depth * 14 }}>{sc.conn.driver === 'mongodb' ? 'No collections' : 'No tables'}</div>]
+    if (sc.objectsLoading && !all.length) return [<div key={`l:${sc.id}:${schema}`} className="faint nav-note" style={{ paddingLeft: 18 + depth * 14 }}>Loading…</div>]
+    if (!all.length) return [<div key={`e:${sc.id}:${schema}`} className="faint nav-note" style={{ paddingLeft: 18 + depth * 14 }}>{sc.conn.driver === 'mongodb' ? 'No collections' : 'No tables'}</div>]
     return sections.filter(([, , items]) => items.length).flatMap(([id, title, items]) => {
       const k = `sec:${sc.id}:${schema}:${id}`
       const expanded = open[k] ?? id !== 'sequences'
       return [
         row({ k, depth, label: `${title}`, caret: true, expanded, extra: <span className="count">{items.length}</span>, onToggle: () => toggle(k, !expanded), onClick: () => toggle(k, !expanded) }),
-        ...(expanded ? items.flatMap((o) => {
+        ...(expanded ? items.flatMap((o, i) => {
           const ok = `o:${sc.id}:${keyOf(o)}`
+          const rk = `${ok}:${id}:${i}` // pinned objects are listed twice and PG function overloads share a name
           return [
             row({
-              k: ok, depth: depth + 1, label: o.name, title: `${sc.conn.name} · ${sc.database ?? ''} · ${o.schema ? o.schema + '.' : ''}${o.name}`,
+              k: rk, depth: depth + 1, label: o.name, title: `${sc.conn.name} · ${sc.database ?? ''} · ${o.schema ? o.schema + '.' : ''}${o.name}`,
               icon: <Icon name={kindIcon(o.kind)} size={13} className="faint" />,
               caret: showCols && !!sc.dialect && (o.kind === 'table' || o.kind === 'view'), expanded: !!open[ok],
               onToggle: async () => { toggle(ok); if (!cols[ok]) setCols((c) => ({ ...c, [ok]: [] })); if (!cols[ok]?.length) { const cs = await call<Column[]>('db.columns', sc.sessionId, o.schema, o.name).catch(() => []); setCols((c) => ({ ...c, [ok]: cs })) } },
@@ -360,7 +361,7 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
               onMenu: (e) => { if (!sel.has(keyOf(o))) setScope(sc.id, { selectedObjects: [o] }); focusOn(sc.id, sc.dialect === 'postgres' ? o.schema : undefined); menuAt(e, itemMenu(sc, o)) }
             }),
             ...(open[ok] ? (cols[ok] ?? []).map((c) => (
-              <div key={`${ok}:${c.name}`} className="list-item nav-note" style={{ paddingLeft: 34 + (depth + 1) * 14, fontSize: 'var(--fs-sm)' }}>
+              <div key={`${rk}:${c.name}`} className="list-item nav-note" style={{ paddingLeft: 34 + (depth + 1) * 14, fontSize: 'var(--fs-sm)' }}>
                 {c.pk ? <Icon name="key" size={10} className="faint" /> : <span style={{ width: 10 }} />}
                 <span className="ellipsis">{c.name}</span><span className="count mono">{c.type}</span>
               </div>

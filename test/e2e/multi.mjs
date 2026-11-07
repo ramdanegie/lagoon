@@ -40,6 +40,28 @@ try {
   assert.ok(await w.locator('.tab .scope-label', { hasText: 'crm' }).count(), 'tab shows its database')
   step('second database (crm) opened in the same window; tab labelled with its database')
 
+  // empty schemas each show one note; toggling them must not leave stale "No tables" / "Loading…" rows behind
+  const notes = () => w.locator('.nav-note').filter({ hasText: /^(No tables|Loading…)$/ }).count()
+  for (let i = 0; i < 3; i++) {
+    for (const s of ['archive', 'staging']) await w.getByRole('treeitem', { name: s, exact: true }).locator('.nav-caret').click()
+    await w.waitForTimeout(150)
+  }
+  await w.waitForTimeout(300) // three toggles each: both expanded now
+  assert.equal(await notes(), 2, 'one note per expanded empty schema')
+  for (const s of ['archive', 'staging']) await w.getByRole('treeitem', { name: s, exact: true }).locator('.nav-caret').click()
+  await w.waitForTimeout(300)
+  assert.equal(await notes(), 0, 'no stale notes after collapsing')
+  // a pinned table is listed twice (Pinned and Tables); both rows must stay distinct
+  await w.getByRole('treeitem', { name: 'contacts' }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'Pin to Top' }).click()
+  await w.getByRole('treeitem', { name: 'contacts' }).nth(1).waitFor()
+  assert.equal(await w.getByRole('treeitem', { name: 'contacts' }).count(), 2)
+  await w.getByRole('treeitem', { name: 'contacts' }).first().click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'Unpin from Top' }).click()
+  await w.waitForTimeout(300)
+  assert.equal(await w.getByRole('treeitem', { name: 'contacts' }).count(), 1, 'unpinning leaves one row')
+  step('tree notes and pinned rows never pile up')
+
   // a second connection in the same window
   await w.getByRole('treeitem', { name: 'MySQL local' }).dblclick()
   await w.getByRole('treeitem', { name: 'products' }).dblclick()
