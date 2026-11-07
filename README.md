@@ -22,7 +22,7 @@
 
 ---
 
-Lagoon is a native-feeling desktop app for working with your databases: browse tables, edit rows inline, write SQL, change structure, import and export, back up, and watch your server, all from one quiet window.
+Lagoon is a native-feeling desktop app for working with your databases. All your connections live in one window: open any database from the tree and work across several at once. Browse tables, edit rows inline, write SQL, change structure, import and export, back up, and watch your server, all from one quiet window.
 
 Every change you make in the grid or the structure editor is **staged first**. You review the exact SQL, then commit it in one transaction, or throw it away. Safe mode adds a confirmation or a password before anything touches a production database.
 
@@ -34,6 +34,7 @@ Everything is free and open source. No account, no telemetry, no feature limits:
 
 ## Highlights
 
+- 🌳 **One window, every database.** A connection tree on the left: connections → databases → schemas → tables. Double-click a database and it opens right there; tables and queries from different connections and databases sit side by side as tabs, each labelled with its database and keeping its own session.
 - 🔌 **Connections that just work.** PostgreSQL, MySQL, MariaDB, SQLite, Redis and MongoDB. SSH tunnels with keys, `~/.ssh/config` and the SSH agent (host keys are pinned on first use), SSL/TLS with client certificates. Passwords live in the OS keychain, or are asked every time, or come from a shell command for short-lived tokens. Status colors, tags, nested groups, import from a URL, and encrypted export to share with your team.
 - 📋 **A grid that stays smooth.** Virtualized rendering scrolls 10,000 rows at 120 fps. Double-click to edit, `⌘I` to add a row, `⌘D` to duplicate, `⌫` to delete. Changes are colored (new, modified, deleted) until you press `⌘S`. Pick foreign-key values from the parent table, find and replace across the page, save filter and column layouts as profiles. Undo and redo, a row detail sidebar that edits many rows at once, Quick Look for long text, JSON and images, follow a foreign key with one click, copy as CSV, JSON, Markdown, HTML or `INSERT` statements.
 - 🔍 **Filters without limits.** Any column, every operator (`IN`, `BETWEEN`, `LIKE`, contains, prefix, `ILIKE` on Postgres…), "any column" search, raw SQL conditions, AND or OR, quick filters from a cell. Filters, sort, hidden columns and column widths are remembered per table.
@@ -66,10 +67,10 @@ Lagoon is built on Electron, but tuned to stay small. Measured on an Apple Silic
 
 | | Idle | One 10,000-row table open | Scrolling |
 |---|---|---|---|
-| **Lagoon** | **113 MB** | 187 MB | 110–120 fps |
+| **Lagoon** | **126 MB** | 196 MB | 120 fps |
 | Navicat Premium Lite 17.3.11 | 129 MB | – | – |
 
-How: database drivers, SSH, Excel export, the SQL editor and charts load only when you first use them; the Welcome window never parses the editor; the grid renders only the rows on screen; rasterizing on the CPU keeps the GPU process small without dropping frames. A native Swift app like TablePlus still uses less (about 60 MB idle); Lagoon trades a little memory for running on macOS, Windows and Linux from one codebase.
+How: database drivers, SSH, Excel export, the SQL editor and charts load only when you first use them; the editor, charts and every dialog load only when you open them; the grid renders only the rows on screen; rasterizing on the CPU keeps the GPU process small without dropping frames. A native Swift app like TablePlus still uses less (about 60 MB idle); Lagoon trades a little memory for running on macOS, Windows and Linux from one codebase.
 
 ## Install
 

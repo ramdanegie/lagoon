@@ -72,7 +72,7 @@ register({
   'group.delete': (_c, id: string) => store.deleteGroup(id),
 
   // ---- sessions ----
-  'session.open': (c, id: string, asked?: { password?: string; sshPassword?: string }) => openSession(id, c.sender, asked),
+  'session.open': (c, id: string, asked?: { password?: string; sshPassword?: string }, override?: { database?: string }) => openSession(id, c.sender, asked, override),
   'session.close': (_c, id: string) => closeSession(id),
   'session.reconnect': (_c, id: string) => reconnect(id),
   'session.checkPassword': (_c, id: string, pw: string) => checkPassword(id, pw),

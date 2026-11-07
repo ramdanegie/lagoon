@@ -214,3 +214,17 @@ input[type='checkbox'], input[type='radio'], input[type='range'], progress { acc
 .code { font-family: var(--font-mono); font-size: var(--fs-sm); background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-5); white-space: pre-wrap; user-select: text; overflow: auto; margin: 0; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-sm); }
 .kv > :nth-child(odd) { color: var(--fg-muted); }
+
+/* ---------- connection tree ---------- */
+.nav-tree { min-height: 100%; padding-bottom: var(--sp-5); }
+.nav-row { gap: var(--sp-2); }
+.nav-row .count { margin-left: var(--sp-2); }
+.nav-caret { width: 12px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--fg-faint); }
+.nav-drv { width: 18px; height: 18px; border-radius: var(--r-sm); display: inline-grid; place-items: center; font-size: 9px; font-weight: 700; color: var(--fg-on-accent); flex: none; }
+.nav-note { font-size: var(--fs-xs); padding-top: var(--sp-1); padding-bottom: var(--sp-1); }
+.nav-row .dot { width: 7px; height: 7px; }
+.tab .scope-label { color: var(--fg-faint); font-size: var(--fs-xs); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-4); padding: var(--sp-7); text-align: center; }
+.hero-title { font-size: var(--fs-xl); font-weight: 600; margin-top: var(--sp-2); }
+.hero-actions { display: grid; grid-template-columns: repeat(2, minmax(190px, 1fr)); gap: var(--sp-4); margin: var(--sp-6) 0 var(--sp-4); }
+.hero-actions .btn { height: 34px; justify-content: flex-start; padding: 0 var(--sp-6); }

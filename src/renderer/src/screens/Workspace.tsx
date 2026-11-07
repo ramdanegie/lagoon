@@ -1,8 +1,9 @@
 import { type ReactNode, lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Connection, ServerInfo, Tag } from '@shared/types'
-import { DRIVERS, SAFE_MODES, dialectOf } from '@shared/types'
-import { call, errText, fail, focusScope, isMac, on, setting, tip, toast, useCommands } from '../lib/api'
-import { useWs, setWs, ws, loadObjects, closeTab, newQueryTab, openTab, updateTab, type Tab } from '../lib/ws'
+import { DRIVERS, SAFE_MODES } from '@shared/types'
+import { call, fail, focusScope, isMac, on, setting, tip, toast, useCommands } from '../lib/api'
+import { useWs, setWs, ws, loadObjects, closeTab, newQueryTab, openTab, updateTab, ScopeContext, useScopes, openScope, scopeOfSession, setScope, closeConnection, updateConnInScopes, type Tab } from '../lib/ws'
+import { newConnection } from './Navigator'
 import { Icon } from '../components/Icon'
 import { Resizer, confirmDialog, menuAt, menuBelow, promptDialog } from '../components/ui'
 import { Sidebar } from './Sidebar'
@@ -20,6 +21,10 @@ const MetricsBoard = lazy(() => import('./MetricsBoard').then((m) => ({ default:
 const Diagram = lazy(() => import('./Diagram').then((m) => ({ default: m.Diagram })))
 const UserManagement = lazy(() => import('./UserManagement').then((m) => ({ default: m.UserManagement })))
 
+const BackupDialog = lazy(() => import('./Backup').then((m) => ({ default: m.BackupDialog })))
+const RestoreDialog = lazy(() => import('./Backup').then((m) => ({ default: m.RestoreDialog })))
+import appIcon from '../assets/icon.png'
+
 async function resolveConnection(connectionId?: string, file?: string): Promise<Connection> {
   if (connectionId) return call<Connection>('conn.get', connectionId)
   const all = await call<Connection[]>('conn.list')
@@ -29,45 +34,22 @@ async function resolveConnection(connectionId?: string, file?: string): Promise<
 
 export function Workspace({ connectionId, file }: { connectionId?: string; file?: string }): ReactNode {
   const s = useWs()
-  const [error, setError] = useState<string | null>(null)
-  const [overlay, setOverlay] = useState<'palette' | 'db' | 'conn' | 'preview' | 'edit' | null>(null)
+  const scopesMap = useScopes()
+  const [overlay, setOverlay] = useState<'palette' | 'db' | 'conn' | 'preview' | 'edit' | 'backup' | 'restore' | null>(null)
   const [tags, setTags] = useState<Tag[]>([])
-  const [widths, setWidths] = useState({ left: 240, right: 300, console: 160 })
+  const [allConns, setAllConns] = useState<Connection[]>([])
+  useEffect(() => { if (overlay === 'backup' || overlay === 'restore') void call<Connection[]>('conn.list').then(setAllConns) }, [overlay])
+  const [widths, setWidths] = useState({ left: 260, right: 300, console: 160 })
   const consoleRef = useRef<HTMLDivElement>(null)
 
-  const connect = async (): Promise<void> => {
-    setError(null)
-    try {
-      const conn = await resolveConnection(connectionId, file)
-      setWs({ conn })
-      document.title = conn.name
-      void call('window.setTitle', conn.name)
-      const asked: { password?: string; sshPassword?: string } = {}
-      if (conn.passwordMode === 'ask') {
-        const pw = await promptDialog(`Password for ${conn.name}`, '', { password: true, ok: 'Connect' })
-        if (pw === null) { setError('Connection cancelled.'); return }
-        asked.password = pw
-      }
-      if (conn.ssh?.enabled && !conn.ssh.useKey && conn.ssh.passwordMode === 'ask') {
-        const pw = await promptDialog(`SSH password for ${conn.ssh.user}@${conn.ssh.host}`, '', { password: true, ok: 'Connect' })
-        if (pw === null) { setError('Connection cancelled.'); return }
-        asked.sshPassword = pw
-      }
-      const r = await call<{ sessionId: string; info: ServerInfo }>('session.open', conn.id, asked)
-      setWs({ sessionId: r.sessionId, info: r.info, dialect: dialectOf(conn.driver), database: r.info.database, schema: r.info.schema, lost: false })
-      void call<Tag[]>('tag.list').then(setTags)
-      if (conn.driver === 'redis') { setWs({ left: false }); openTab({ kind: 'redis', title: `db${r.info.database ?? 0}` }) }
-      await loadObjects()
-      await restoreTabs(conn)
-    } catch (e) {
-      setError(errText(e))
-    }
-  }
-
   useEffect(() => {
-    void connect()
-    const offLog = on('console:log', (e: { at: string; sql: string }) => useWs.setState((st) => ({ console: [...st.console.slice(-999), e] })))
-    const offLost = on('session:lost', (id: string) => { if (id === ws().sessionId) setWs({ lost: true }) })
+    void call<Tag[]>('tag.list').then(setTags)
+    const offLog = on('console:log', (e: { at: string; sql: string; session?: string }) => useWs.setState((st) => ({ console: [...st.console.slice(-999), e] })))
+    const offLost = on('session:lost', (id: string) => { const sc = scopeOfSession(id); if (sc) setScope(sc.id, { lost: true }) })
+    // opened for a specific connection or a .sqlite file (command line, Finder, connection switcher)
+    if (connectionId || file) {
+      void resolveConnection(connectionId, file).then((c) => { window.dispatchEvent(new CustomEvent('connections:changed')); return openScope(c, { ask: (t) => promptDialog(t, '', { password: true, ok: 'Connect' }) }) }).catch(fail)
+    }
     return () => { offLog(); offLost() }
   }, [])
 
@@ -96,7 +78,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
       if (pw === null || !(await call<boolean>('session.checkPassword', ws().sessionId, pw))) { if (pw !== null) toast('Wrong password', 'error'); return }
     }
     const conn = await call<Connection>('conn.patch', ws().conn!.id, { safeMode: level })
-    setWs({ conn })
+    updateConnInScopes(conn)
   }
 
   useCommands('workspace', {
@@ -107,7 +89,9 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
     'conn.openDatabase': () => setOverlay('db'),
     'conn.openConnection': () => setOverlay('conn'),
     'conn.edit': () => setOverlay('edit'),
-    'conn.new': () => void call('window.open', { view: 'welcome' }),
+    'conn.new': () => newConnection(),
+    'file.backup': () => setOverlay('backup'),
+    'file.restore': () => setOverlay('restore'),
     'nav.newQuery': () => void newQueryTab(),
     'nav.newTab': () => { if (setting('general.cmdTOpens', 'query') === 'empty') openTab({ kind: 'empty', title: 'New tab' }, { newTab: true }); else newQueryTab() },
     'file.closeTab': () => { if (s.active) void closeWithGuard(s.active) },
@@ -117,13 +101,13 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
     'conn.reloadWorkspace': () => void reloadWorkspace(),
     'conn.reloadTab': () => window.dispatchEvent(new CustomEvent('ws:reload')),
     'conn.reconnect': () => void reconnect(),
-    'conn.disconnect': () => void call('session.close', ws().sessionId).then(() => call('window.close')),
+    'conn.disconnect': () => { const c = ws().conn; if (c) void closeConnection(c.id) },
     'nav.nextTab': () => cycleTab(1),
     'nav.prevTab': () => cycleTab(-1),
     'nav.splitRight': () => setWs({ split: !ws().split, activePane: ws().split ? 0 : 1 }),
     'nav.nextPane': () => setWs({ activePane: ws().activePane === 0 && ws().split ? 1 : 0 }),
     'nav.prevPane': () => setWs({ activePane: ws().activePane === 0 && ws().split ? 1 : 0 }),
-    'query.runCurrent': () => { if (!activeTab || activeTab.kind !== 'query') { newQueryTab(); return true } return false },
+    'query.runCurrent': () => { if (!activeTab || activeTab.kind !== 'query') { if (ws().dialect) newQueryTab(); return true } return false },
     ...Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`nav.tab${i + 1}`, () => { const t = paneTabs(ws().activePane)[i === 8 ? paneTabs(ws().activePane).length - 1 : i]; if (t) setWs({ active: t.id }) }]))
   })
 
@@ -160,30 +144,6 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
     { label: 'Close All Tabs', onClick: () => ws().tabs.filter((x) => !(ws().tabApis[x.id]?.pendingCount() > 0)).forEach((x) => closeTab(x.id)) }
   ]
 
-  if (!s.sessionId) {
-    return (
-      <div className="ws">
-        <div className={`toolbar drag ${isMac ? 'mac' : ''}`}><span className="muted">{s.conn?.name ?? 'Connecting…'}</span></div>
-        <div className="empty" style={{ alignContent: 'center', height: '100%' }}>
-          {error ? (
-            <>
-              <Icon name="plug" size={32} />
-              <div style={{ fontWeight: 600, color: 'var(--fg)' }}>Could not connect</div>
-              <div className="selectable danger-text" style={{ maxWidth: 560, whiteSpace: 'pre-wrap' }}>{error}</div>
-              <div className="row">
-                <button className="btn" onClick={() => setOverlay('edit')} disabled={!s.conn}>Edit connection</button>
-                <button className="btn primary" onClick={() => void connect()}>Try again</button>
-              </div>
-            </>
-          ) : (
-            <><div className="status-bar" style={{ width: 260, flex: 'none' }}><span>Connecting to {s.conn?.name ?? '…'}</span><span className="progress" /></div></>
-          )}
-        </div>
-        {overlay === 'edit' && s.conn && <ConnectionForm initial={s.conn} onClose={() => setOverlay(null)} onSaved={(c) => { setOverlay(null); setWs({ conn: c }); void connect() }} />}
-      </div>
-    )
-  }
-
   const drv = DRIVERS.find((d) => d.id === s.conn?.driver)
   const renderTab = (t: Tab): ReactNode => {
     switch (t.kind) {
@@ -197,6 +157,12 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
       case 'users': return <Suspense fallback={null}><UserManagement key={t.id} tab={t} /></Suspense>
       default: return <div className="empty">Empty tab</div>
     }
+  }
+
+  const multiScope = Object.keys(scopesMap).length > 1
+  const scopeTitle = (t: Tab): string => {
+    const sc = t.scope ? scopesMap[t.scope] : undefined
+    return sc ? `${t.title}\n${sc.conn.name} · ${sc.database ?? ''}${t.schema ? ' · ' + t.schema : ''}` : t.title
   }
 
   const pane = (n: 0 | 1): ReactNode => {
@@ -216,10 +182,11 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
                 onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); void closeWithGuard(t.id) } else setWs({ active: t.id, activePane: n }) }}
                 onDoubleClick={() => updateTab(t.id, { preview: false })}
                 onContextMenu={(e) => menuAt(e, tabMenu(t))}
-                title={t.title}
+                title={scopeTitle(t)}
               >
                 <Icon name={t.kind === 'query' ? 'sql' : t.kind === 'table' ? (t.objKind === 'view' ? 'view' : 'table') : t.kind === 'redis' ? 'key' : t.kind === 'mongo' ? 'collection' : t.kind === 'metrics' ? 'chart' : t.kind === 'diagram' ? 'diagram' : t.kind === 'users' ? 'user' : 'function'} size={12} />
                 <span className="title ellipsis">{t.title}</span>
+                {multiScope && t.scope && scopesMap[t.scope] && <span className="scope-label">{scopesMap[t.scope].database || scopesMap[t.scope].conn.name}</span>}
                 {dirty && <span className="dirty" aria-label="Unsaved changes" />}
                 <button className="close" aria-label={`Close ${t.title}`} onMouseDown={(e) => e.stopPropagation()} onClick={() => void closeWithGuard(t.id)}><Icon name="x" size={10} /></button>
               </div>
@@ -228,14 +195,33 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
           <button className="btn ghost icon" style={{ margin: 3 }} title={tip('New SQL query', 'nav.newQuery')} aria-label="New SQL query" onClick={() => { setWs({ activePane: n }); newQueryTab() }}><Icon name="plus" size={12} /></button>
         </div>
         <div className="content">
-          {list.length === 0 ? (
+          {list.length === 0 && !Object.keys(scopesMap).length ? (
+            <div className="hero">
+              <img src={appIcon} alt="" width={112} height={112} draggable={false} />
+              <div className="hero-title">Lagoon</div>
+              <div className="muted">A calm place for your databases</div>
+              <div className="hero-actions">
+                <button className="btn primary" onClick={newConnection}><Icon name="plus" /> Create connection</button>
+                <button className="btn" onClick={() => void openSqliteFile()}><Icon name="file" /> Open SQLite file…</button>
+                <button className="btn" onClick={() => setOverlay('backup')}><Icon name="download" /> Backup database</button>
+                <button className="btn" onClick={() => setOverlay('restore')}><Icon name="upload" /> Restore database</button>
+              </div>
+              <div className="faint" style={{ fontSize: 'var(--fs-sm)' }}>Double-click a connection in the sidebar to open it.</div>
+            </div>
+          ) : list.length === 0 ? (
             <div className="empty" style={{ alignContent: 'center', height: '100%' }}>
               <Icon name={drv?.dialect ? 'table' : 'db'} size={32} />
               <div>Open an item from the sidebar, or</div>
               <div className="row"><button className="btn" onClick={() => setOverlay('palette')}>Open anything <span className="kbd">{tip('', 'nav.openAnything').replace(/[()]/g, '')}</span></button>{drv?.dialect && <button className="btn" onClick={() => newQueryTab()}>New SQL query</button>}</div>
             </div>
           ) : (
-            list.map((t) => <div key={t.id} style={{ display: activeInPane?.id === t.id ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>{renderTab(t)}</div>)
+            list.map((t) => (
+              <ScopeContext.Provider key={t.id} value={t.scope}>
+                <div style={{ display: activeInPane?.id === t.id ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
+                  {t.scope && !scopesMap[t.scope] ? <div className="empty">This database was closed. Open it again from the sidebar.</div> : renderTab(t)}
+                </div>
+              </ScopeContext.Provider>
+            ))
           )}
         </div>
       </div>
@@ -263,26 +249,27 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
             <Icon name={(s.conn?.safeMode ?? 0) > 0 ? 'lock' : 'unlock'} />
           </button>
           {drv?.dialect && <button className="btn icon ghost" title={tip('Open database', 'conn.openDatabase')} aria-label="Open database" onClick={() => setOverlay('db')}><Icon name="db" /></button>}
-          {drv?.id !== 'redis' && <button className="btn icon ghost" title={tip('New SQL query', 'nav.newQuery')} aria-label="New query" onClick={() => newQueryTab()}><Icon name="sql" /></button>}
+          {drv && drv.id !== 'redis' && <button className="btn icon ghost" title={tip('New SQL query', 'nav.newQuery')} aria-label="New query" onClick={() => newQueryTab()}><Icon name="sql" /></button>}
         </div>
         <div
           className="status-bar nodrag"
           role="button"
           tabIndex={0}
           style={{ background: s.conn?.statusColor ? `color-mix(in srgb, ${s.conn.statusColor} 22%, var(--bg-input))` : undefined, borderColor: s.conn?.statusColor }}
-          onClick={(e) => (s.lost ? void reconnect() : menuBelow(e.currentTarget, [
+          onClick={(e) => (!s.conn ? newConnection() : s.lost ? void reconnect() : menuBelow(e.currentTarget, [
             { header: `${drv?.name} ${s.info?.version ?? ''}` },
             { label: s.conn?.driver === 'sqlite' ? s.conn.filePath : `${s.conn?.username ?? ''}@${s.conn?.host}:${s.conn?.port ?? ''}`, disabled: true },
             { sep: true },
             { label: 'Edit connection…', onClick: () => setOverlay('edit') },
             { label: 'Reconnect', onClick: () => void reconnect() },
-            { label: 'Disconnect', onClick: () => void call('session.close', s.sessionId).then(() => call('window.close')) }
+            { label: 'Disconnect', onClick: () => { if (s.conn) void closeConnection(s.conn.id) } }
           ]))}
-          title={s.lost ? 'Connection lost. Click to reconnect.' : 'Connection details'}
+          title={!s.conn ? 'No connection selected' : s.lost ? 'Connection lost. Click to reconnect.' : 'Connection details'}
         >
+          {!s.conn && <span className="muted">No connection selected</span>}
           {tag && <span className="badge" style={{ background: tag.color }}>{tag.name}</span>}
-          <span className="ellipsis" style={{ fontWeight: 500 }}>{s.conn?.name}</span>
-          <span className="faint">·</span>
+          {s.conn && <span className="ellipsis" style={{ fontWeight: 500 }}>{s.conn.name}</span>}
+          {s.conn && <span className="faint">·</span>}
           <span className="ellipsis muted">{s.conn?.driver === 'redis' ? `db${s.database ?? 0}` : s.database}{s.schema && s.dialect === 'postgres' ? ` · ${s.schema}` : ''}</span>
           {s.lost && <span className="danger-text" style={{ marginLeft: 'auto' }}>Disconnected · click to reconnect</span>}
           {s.busy > 0 && <span className="progress" aria-label="Running" />}
@@ -328,18 +315,23 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
       {overlay === 'palette' && <Palette onClose={() => setOverlay(null)} />}
       {overlay === 'db' && <DatabasePicker onClose={() => setOverlay(null)} />}
       {overlay === 'conn' && <ConnectionPicker onClose={() => setOverlay(null)} />}
-      {overlay === 'edit' && s.conn && <ConnectionForm initial={s.conn} onClose={() => setOverlay(null)} onSaved={(c) => { setOverlay(null); setWs({ conn: c }); toast('Saved. Reconnect to apply host or credential changes.') }} />}
+      {overlay === 'edit' && s.conn && <ConnectionForm initial={s.conn} onClose={() => setOverlay(null)} onSaved={(c) => { setOverlay(null); updateConnInScopes(c); window.dispatchEvent(new CustomEvent('connections:changed')); toast('Saved. Reconnect to apply host or credential changes.') }} />}
+      <Suspense fallback={null}>
+        {overlay === 'backup' && <BackupDialog connections={allConns} onClose={() => setOverlay(null)} />}
+        {overlay === 'restore' && <RestoreDialog connections={allConns} onClose={() => setOverlay(null)} />}
+      </Suspense>
       {overlay === 'preview' && activeApi && <PreviewModal sql={activeApi.previewSql()} onClose={() => setOverlay(null)} onCommit={() => void commitActive()} onDiscard={() => activeApi.discard()} />}
       <SafeModeHost />
     </div>
   )
 }
 
-async function restoreTabs(conn: Connection): Promise<void> {
-  if (!dialectOf(conn.driver)) return
-  const mode = (await call<Record<string, unknown>>('settings.all'))['editor.restoreTabs'] ?? 'first'
-  if (mode === 'none') return
-  const saved = await call<{ title: string | null; content: string }[]>('editorTabs.get', conn.id)
-  for (const t of mode === 'first' ? saved.slice(0, 1) : saved) if (t.content.trim()) newQueryTab(t.content, t.title ?? undefined)
+async function openSqliteFile(): Promise<void> {
+  const [f] = await call<string[]>('dialog.open', { properties: ['openFile'], filters: [{ name: 'SQLite', extensions: ['sqlite', 'sqlite3', 'db', 'db3'] }, { name: 'All files', extensions: ['*'] }] })
+  if (!f) return
+  try {
+    const c = await resolveConnection(undefined, f)
+    window.dispatchEvent(new CustomEvent('connections:changed'))
+    await openScope(c)
+  } catch (e) { fail(e) }
 }
-

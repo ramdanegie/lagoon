@@ -8,7 +8,7 @@ import { splitStatements, statementAt, findParams, applyParams, resultName, with
 import { explainSql, explainFallbackSql, parsePlan, type Plan } from '@shared/explain'
 import type { Column, ForeignKey, ObjectKind, Result } from '@shared/types'
 import { call, errText, fail, focusScope, isMac, setting, toast, useCommands, useSetting } from '../lib/api'
-import { useWs, ws, runSql, guard, openTab, updateTab, type Tab } from '../lib/ws'
+import { useWs, ws, runSql, guard, openTab, updateTab, type Tab, scopes } from '../lib/ws'
 import { USER_SNIPPETS, allSnippets, identAt, joinSuggestions, tableOf, tablesInQuery, type Snippet } from '../lib/snippets'
 import { beautify, uglify } from '../lib/sqlformat'
 import { pluginMenuItems } from '../lib/plugins'
@@ -28,7 +28,8 @@ function persistTabs(): void {
   clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
     const { conn, tabs } = ws()
-    if (conn) void call('editorTabs.set', conn.id, tabs.filter((t) => t.kind === 'query' && !t.filePath).map((t) => ({ title: t.title, content: t.content ?? '' })))
+    // only this connection's editors: tabs from other connections live in the same window
+    if (conn) void call('editorTabs.set', conn.id, tabs.filter((t) => t.kind === 'query' && !t.filePath && scopes()[t.scope ?? '']?.conn.id === conn.id).map((t) => ({ title: t.title, content: t.content ?? '' })))
   }, 800)
 }
 

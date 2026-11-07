@@ -23,7 +23,7 @@ try {
   const welcome = await electronApp.firstWindow()
   welcome.on('console', (m) => m.type() === 'error' && console.log('  [welcome console]', m.text()))
   await welcome.setViewportSize?.({ width: 860, height: 560 })
-  await welcome.getByText('No saved connections yet.').waitFor()
+  await welcome.getByText('No connections yet.').waitFor()
   await welcome.waitForFunction(() => !document.querySelector('[inert]'))
   await welcome.screenshot({ path: join(shots, 'S01-empty.png') })
   step('welcome empty state')
@@ -44,13 +44,14 @@ try {
   step('connection test ok')
 
   await welcome.getByRole('button', { name: 'Connect', exact: true }).click()
-  let ws
-  for (let i = 0; i < 100 && !ws; i++) { ws = electronApp.windows().find((w) => w.url().includes('view=workspace')); if (!ws) await new Promise((r) => setTimeout(r, 100)) }
-  assert.ok(ws, 'workspace window opened')
+  // the connection opens in the same window: tree shows connection → database → schema → tables
+  const ws = welcome
   ws.on('console', (m) => m.type() === 'error' && console.log('  [workspace console]', m.text()))
   ws.on('pageerror', (e) => console.log('  [workspace pageerror]', e.message))
   await ws.getByRole('treeitem', { name: 'customers' }).waitFor({ timeout: 20000 })
-  step('workspace opened, sidebar lists tables')
+  await ws.getByRole('treeitem', { name: 'Shop (e2e)' }).waitFor()
+  await ws.getByRole('treeitem', { name: 'shop', exact: true }).waitFor()
+  step('connection tree: connection → database → schema → tables in one window')
 
   await ws.getByRole('treeitem', { name: 'customers' }).click()
   await ws.getByText(/of 750 rows/).waitFor({ timeout: 15000 })

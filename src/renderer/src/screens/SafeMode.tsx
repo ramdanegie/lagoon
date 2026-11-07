@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { SAFE_MODES } from '@shared/types'
 import { call } from '../lib/api'
-import { useSafe, ws } from '../lib/ws'
+import { useSafe } from '../lib/ws'
 import { Modal } from '../components/ui'
 
 /** Confirmation / password sheet shown before statements are sent on Alert and Safe levels. */
@@ -12,10 +12,10 @@ export function SafeModeHost(): ReactNode {
   if (!req) return null
   const done = (ok: boolean): void => { useSafe.setState({ req: null }); setPw(''); setErr(''); req.resolve(ok) }
   const send = async (): Promise<void> => {
-    if (req.password && !(await call<boolean>('session.checkPassword', ws().sessionId, pw))) { setErr('Wrong database password'); return }
+    if (req.password && !(await call<boolean>('session.checkPassword', req.sessionId, pw))) { setErr('Wrong database password'); return }
     done(true)
   }
-  const level = SAFE_MODES[ws().conn?.safeMode ?? 0]
+  const level = SAFE_MODES[req.level]
   return (
     <Modal
       title={<><span>Confirm before sending</span><span className="badge" style={{ background: 'var(--warning)' }}>{level}</span></>}
@@ -23,7 +23,7 @@ export function SafeModeHost(): ReactNode {
       width={620}
       footer={<><button className="btn" onClick={() => done(false)}>Cancel</button><button className="btn primary" onClick={send}>Send</button></>}
     >
-      <div className="muted">{req.stmts.length} statement{req.stmts.length > 1 ? 's' : ''} will run on <b>{ws().conn?.name}</b>{ws().database ? ` / ${ws().database}` : ''}.</div>
+      <div className="muted">{req.stmts.length} statement{req.stmts.length > 1 ? 's' : ''} will run on <b>{req.connName}</b>{req.database ? ` / ${req.database}` : ''}.</div>
       <pre className="code" style={{ maxHeight: 280 }}>{req.stmts.join(';\n\n')}</pre>
       {req.password && (
         <>

@@ -22,7 +22,7 @@ await mc.db('crm').collection('people').insertMany([{ name: 'Ana', age: 31, tags
 
 const ea = await electron.launch({ args: [join(app, 'out/main/index.js')], cwd: app, env: { ...process.env, LAGOON_USER_DATA: mkdtempSync(join(tmpdir(), 'tc-e2e-')) } })
 const welcome = await ea.firstWindow()
-await welcome.getByText('No saved connections yet.').waitFor()
+await welcome.getByText('No connections yet.').waitFor()
   await welcome.waitForFunction(() => !document.querySelector('[inert]'))
 const save = (c) => welcome.evaluate((c) => window.api.call('conn.save', c), { id: '', passwordMode: 'none', safeMode: 0, ...c })
 const openWs = async (params) => {

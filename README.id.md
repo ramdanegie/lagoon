@@ -22,7 +22,7 @@
 
 ---
 
-Lagoon adalah app desktop untuk bekerja dengan database: menjelajah tabel, mengedit baris langsung di grid, menulis SQL, mengubah struktur, impor dan ekspor, backup, dan memantau server, semuanya dari satu jendela yang tenang.
+Lagoon adalah app desktop untuk bekerja dengan database. Semua koneksi ada di satu jendela: buka database mana pun dari pohon dan kerjakan beberapa sekaligus. Menjelajah tabel, mengedit baris langsung di grid, menulis SQL, mengubah struktur, impor dan ekspor, backup, dan memantau server, semuanya dari satu jendela yang tenang.
 
 Setiap perubahan di grid atau di editor struktur **ditahan dulu**. Kamu bisa melihat SQL persisnya, lalu commit dalam satu transaksi, atau membatalkannya. Safe mode menambahkan konfirmasi atau password sebelum apa pun menyentuh database produksi.
 
@@ -34,6 +34,7 @@ Semuanya gratis dan open source. Tanpa akun, tanpa telemetri, tanpa batasan fitu
 
 ## Fitur unggulan
 
+- 🌳 **Satu jendela, semua database.** Pohon koneksi di kiri: koneksi → database → schema → tabel. Double-click database dan langsung terbuka di tempat; tabel dan query dari koneksi serta database berbeda berjajar sebagai tab, masing-masing diberi label databasenya dan memakai sesinya sendiri.
 - 🔌 **Koneksi yang langsung jalan.** PostgreSQL, MySQL, MariaDB, SQLite, Redis, dan MongoDB. SSH tunnel dengan key, `~/.ssh/config`, dan SSH agent (host key diingat sejak koneksi pertama), SSL/TLS dengan sertifikat klien. Password disimpan di keychain OS, ditanya setiap kali, atau diambil dari perintah shell untuk token berumur pendek. Warna status, tag, grup bertingkat, impor dari URL, dan ekspor terenkripsi untuk dibagikan ke tim.
 - 📋 **Grid yang tetap mulus.** Rendering virtual menggulir 10.000 baris di 120 fps. Klik dua kali untuk mengedit, `⌘I` menambah baris, `⌘D` menduplikasi, `⌫` menghapus. Perubahan diberi warna (baru, diubah, dihapus) sampai kamu menekan `⌘S`. Pilih nilai foreign key dari tabel induk, cari dan ganti di satu halaman, simpan susunan filter dan kolom sebagai profil. Undo dan redo, sidebar detail baris yang bisa mengedit banyak baris sekaligus, Quick Look untuk teks panjang, JSON, dan gambar, lompat ke foreign key dengan sekali klik, salin sebagai CSV, JSON, Markdown, HTML, atau perintah `INSERT`.
 - 🔍 **Filter tanpa batas.** Kolom apa pun, semua operator (`IN`, `BETWEEN`, `LIKE`, contains, prefix, `ILIKE` di Postgres…), pencarian "semua kolom", kondisi SQL mentah, AND atau OR, quick filter dari sel. Filter, urutan, kolom tersembunyi, dan lebar kolom diingat per tabel.
@@ -66,10 +67,10 @@ Lagoon dibangun dengan Electron, tetapi disetel agar tetap kecil. Diukur di Mac 
 
 | | Diam | Satu tabel 10.000 baris terbuka | Scroll |
 |---|---|---|---|
-| **Lagoon** | **113 MB** | 187 MB | 110–120 fps |
+| **Lagoon** | **126 MB** | 196 MB | 120 fps |
 | Navicat Premium Lite 17.3.11 | 129 MB | – | – |
 
-Caranya: driver database, SSH, ekspor Excel, editor SQL, dan chart baru dimuat saat pertama kali dipakai; jendela Welcome tidak pernah memuat editor; grid hanya merender baris yang terlihat di layar; raster di CPU menjaga proses GPU tetap kecil tanpa mengurangi frame. App Swift native seperti TablePlus masih lebih hemat (sekitar 60 MB saat diam); Lagoon menukar sedikit memori dengan kemampuan berjalan di macOS, Windows, dan Linux dari satu basis kode.
+Caranya: driver database, SSH, ekspor Excel, editor SQL, dan chart baru dimuat saat pertama kali dipakai; editor, chart, dan setiap dialog baru dimuat saat dibuka; grid hanya merender baris yang terlihat di layar; raster di CPU menjaga proses GPU tetap kecil tanpa mengurangi frame. App Swift native seperti TablePlus masih lebih hemat (sekitar 60 MB saat diam); Lagoon menukar sedikit memori dengan kemampuan berjalan di macOS, Windows, dan Linux dari satu basis kode.
 
 ## Instalasi
 

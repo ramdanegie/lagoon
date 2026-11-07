@@ -57,18 +57,21 @@ const results = {}
 const t0 = Date.now()
 const ea = await electron.launch({ args: [join(app, 'out/main/index.js')], cwd: app, env: { ...process.env, LAGOON_USER_DATA: join(tmp, 'ud') } })
 const welcome = await ea.firstWindow()
-await welcome.getByText('No saved connections yet.').waitFor()
+await welcome.getByText('No connections yet.').waitFor()
 results.coldStartMs = Date.now() - t0
 await sleep(4000)
 const needle = join(app, 'node_modules/electron')
 results.idleWelcomeMB = { rss: mb(rssOf(needle)), footprint: footprintOf(needle) }
 
-await welcome.evaluate((f) => window.api.call('window.open', { view: 'workspace', file: f }), dbFile)
-let ws
-for (let i = 0; i < 100 && !ws; i++) { ws = ea.windows().find((w) => w.url().includes('view=workspace')); if (!ws) await sleep(100) }
-await welcome.close() // the real connect flow closes the Welcome window
+// one window: save the connection, open it from the tree, click the table (the real flow)
+await welcome.evaluate(async (f) => {
+  await window.api.call('conn.save', { id: '', name: 'Perf SQLite', driver: 'sqlite', filePath: f, passwordMode: 'none', safeMode: 0 })
+  window.dispatchEvent(new CustomEvent('connections:changed'))
+}, dbFile)
+const ws = welcome
 const tOpen = Date.now()
-await ws.getByRole('treeitem', { name: 'big' }).click()
+await ws.getByRole('treeitem', { name: 'Perf SQLite' }).dblclick()
+await ws.getByRole('treeitem', { name: 'big', exact: true }).click()
 await ws.getByText(/of 10,000 rows/).waitFor()
 results.openTable10kMs = Date.now() - tOpen
 await sleep(3000)

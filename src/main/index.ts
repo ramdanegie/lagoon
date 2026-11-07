@@ -24,12 +24,11 @@ if (process.env.LAGOON_USER_DATA) app.setPath('userData', process.env.LAGOON_USE
 // 2D UI: rasterizing on the CPU keeps scrolling at 120 fps and saves ~17 MB of GPU-process memory
 app.commandLine.appendSwitch('disable-gpu-rasterization')
 
-export function openWindow(params: Record<string, string> = { view: 'welcome' }): BrowserWindow {
-  const welcome = params.view === 'welcome'
+export function openWindow(params: Record<string, string> = { view: 'main' }): BrowserWindow {
   const win = new BrowserWindow({
-    width: welcome ? 860 : 1360,
-    height: welcome ? 560 : 860,
-    minWidth: welcome ? 700 : 900,
+    width: 1360,
+    height: 860,
+    minWidth: 900,
     minHeight: 480,
     show: false,
     title: 'Lagoon',
@@ -97,7 +96,7 @@ app.whenReady().then(() => {
   buildMenu()
   // a .sqlite file passed on the command line opens straight into a workspace
   const file = process.argv.slice(1).find((a) => /\.(sqlite3?|db)$/i.test(a))
-  openWindow(file ? { view: 'workspace', file } : { view: 'welcome' })
+  openWindow(file ? { view: 'main', file } : { view: 'main' })
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && openWindow())
 })
 

@@ -15,7 +15,7 @@ const step = (m) => console.log('•', m)
 
 try {
   const welcome = await ea.firstWindow()
-  await welcome.getByText('No saved connections yet.').waitFor()
+  await welcome.getByText('No connections yet.').waitFor()
   await welcome.waitForFunction(() => !document.querySelector('[inert]'))
   const c = await welcome.evaluate(() => window.api.call('conn.save', { id: '', name: 'Shop', driver: 'postgres', host: '127.0.0.1', port: 54400, username: 'tc', database: 'shop', passwordMode: 'none', safeMode: 0 }))
   await welcome.evaluate((id) => window.api.call('window.open', { view: 'workspace', conn: id }), c.id)

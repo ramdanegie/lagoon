@@ -1,8 +1,7 @@
 import { type ReactNode, Suspense, lazy, useEffect, useState } from 'react'
 import { useSettings, useCommands, call } from './lib/api'
 import { MenuHost, DialogHost, Toasts } from './components/ui'
-// each window type loads only what it shows: the Welcome window never parses the editor, grid or charts
-const Welcome = lazy(() => import('./screens/Welcome').then((m) => ({ default: m.Welcome })))
+// heavy screens (editor, charts, dialogs) load on first use; see Workspace
 const Workspace = lazy(() => import('./screens/Workspace').then((m) => ({ default: m.Workspace })))
 const SettingsModal = lazy(() => import('./screens/Settings').then((m) => ({ default: m.SettingsModal })))
 import { applyCustomTheme } from './lib/theme'
@@ -38,17 +37,16 @@ export function App(): ReactNode {
   const [settings, setSettings] = useState(false)
   useCommands('global', {
     'app.settings': () => setSettings(true),
-    'file.newWindow': () => void call('window.open', { view: 'welcome' }),
+    'file.newWindow': () => void call('window.open', { view: 'main' }),
     'view.theme': () => {
       const cur = document.documentElement.dataset.theme
       void call('settings.set', 'theme', cur === 'dark' ? 'light' : 'dark')
     }
   })
-  const view = params.get('view') ?? 'welcome'
   return (
     <>
       <Suspense fallback={null}>
-        {view === 'workspace' ? <Workspace connectionId={params.get('conn') ?? undefined} file={params.get('file') ?? undefined} /> : <Welcome />}
+        <Workspace connectionId={params.get('conn') ?? undefined} file={params.get('file') ?? undefined} />
         {settings && <SettingsModal onClose={() => setSettings(false)} />}
       </Suspense>
       <MenuHost />

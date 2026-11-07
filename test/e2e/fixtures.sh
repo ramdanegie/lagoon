@@ -11,6 +11,8 @@ up)
   initdb -D "$STATE/pg" -U tc -A trust >/dev/null
   pg_ctl -D "$STATE/pg" -o "-p 54400 -k /tmp" -l "$STATE/pg.log" start >/dev/null
   psql -h /tmp -p 54400 -U tc -d postgres -qc "create database shop"
+  psql -h /tmp -p 54400 -U tc -d postgres -qc "create database crm"
+  psql -h /tmp -p 54400 -U tc -d crm -qc "create table contacts (id serial primary key, full_name text); insert into contacts (full_name) select 'Contact ' || g from generate_series(1, 42) g"
   psql -h /tmp -p 54400 -U tc -d shop -q <<'SQL'
 create table customers (id serial primary key, name text not null, email text unique, city text, created_at timestamptz default now());
 create table orders (id serial primary key, customer_id int references customers(id) on delete cascade, total numeric(10,2) not null, status text default 'pending', meta jsonb);

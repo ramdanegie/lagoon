@@ -196,7 +196,7 @@ export const closeAll = (): Promise<void[]> => Promise.all([...sessions.keys()].
 
 function logSql(s: Session, sql: string): void {
   if (!s.owner || s.owner.isDestroyed()) return
-  s.owner.send('console:log', { at: new Date().toISOString(), sql: sql.length > 20000 ? `-- statement of ${sql.length} characters omitted` : sql })
+  s.owner.send('console:log', { at: new Date().toISOString(), session: s.id, sql: sql.length > 20000 ? `-- statement of ${sql.length} characters omitted` : sql })
 }
 
 /** Safe-mode password check: compares with the password this session connected with. */

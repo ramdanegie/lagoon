@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Connection, DbObject } from '@shared/types'
 import { DRIVERS } from '@shared/types'
 import { call, dispatch, errText, fail, shortcut, toast } from '../lib/api'
-import { useWs, setWs, ws, openTab, loadObjects, runSql } from '../lib/ws'
+import { useWs, setWs, ws, openTab, loadObjects, runSql, openScope } from '../lib/ws'
 import { Icon, kindIcon } from '../components/Icon'
 import { Modal, confirmDialog, menuAt, promptDialog } from '../components/ui'
 import { fuzzy } from './Sidebar'
@@ -97,15 +97,12 @@ export function Palette({ onClose }: { onClose: () => void }): ReactNode {
   return <PaletteList placeholder="Open anything: tables, views, functions, saved queries, features" items={items} onClose={onClose} />
 }
 
+/** Open another database of the focused connection in its own scope (the tree shows it, tabs keep theirs). */
 export async function switchDatabase(name: string): Promise<void> {
-  const st = ws()
-  const dirty = st.tabs.some((t) => (st.tabApis[t.id]?.pendingCount() ?? 0) > 0)
-  if (dirty && !(await confirmDialog('Switch database?', 'Tabs with uncommitted changes will be closed and their changes lost.', { ok: 'Switch', danger: true }))) return
+  const c = ws().conn
+  if (!c) return
   try {
-    if (st.conn?.driver === 'mongodb') { await call('mongo.use', st.sessionId, name); setWs({ database: name }) }
-    else { const r = await call<{ database: string; schema: string }>('db.use', st.sessionId, name); setWs({ database: r.database, schema: r.schema }) }
-    setWs({ tabs: st.tabs.filter((t) => t.kind === 'query'), active: undefined, selectedObjects: [] })
-    await loadObjects()
+    await openScope(c, { database: name, ask: (t) => promptDialog(t, '', { password: true, ok: 'Connect' }) })
   } catch (e) { fail(e) }
 }
 
@@ -189,7 +186,7 @@ export function ConnectionPicker({ onClose }: { onClose: () => void }): ReactNod
   const items = (q: string): Item[] =>
     conns.filter((c) => fuzzy(c.name, q, 'contains') || fuzzy(c.host ?? '', q, 'contains')).map((c) => ({
       id: c.id, label: c.name, icon: 'plug', detail: `${DRIVERS.find((x) => x.id === c.driver)?.name} · ${c.driver === 'sqlite' ? c.filePath : c.host}`,
-      run: () => void call('window.open', { view: 'workspace', conn: c.id })
+      run: () => { window.dispatchEvent(new CustomEvent('connections:changed')); void openScope(c, { ask: (t) => promptDialog(t, '', { password: true, ok: 'Connect' }) }).catch(fail) }
     }))
-  return <PaletteList placeholder="Open a connection in a new window" items={items} onClose={onClose} />
+  return <PaletteList placeholder="Open a connection" items={items} onClose={onClose} />
 }
