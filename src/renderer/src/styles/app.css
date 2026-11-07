@@ -228,3 +228,30 @@ input[type='checkbox'], input[type='radio'], input[type='range'], progress { acc
 .hero-title { font-size: var(--fs-xl); font-weight: 600; margin-top: var(--sp-2); }
 .hero-actions { display: grid; grid-template-columns: repeat(2, minmax(190px, 1fr)); gap: var(--sp-4); margin: var(--sp-6) 0 var(--sp-4); }
 .hero-actions .btn { height: 34px; justify-content: flex-start; padding: 0 var(--sp-6); }
+.grid-edit-actions { position: absolute; z-index: 5; display: flex; gap: 2px; align-items: center; }
+.grid-edit-actions button { width: 21px; height: 100%; border: 0; border-radius: var(--r-sm); display: grid; place-items: center; padding: 0; cursor: default; }
+.grid-edit-actions .ok { background: var(--accent); color: var(--fg-on-accent); }
+.grid-edit-actions .ok:hover { background: var(--accent-hover); }
+.grid-edit-actions .no { background: var(--bg-active); color: var(--fg); }
+.grid-edit-actions .no:hover { background: var(--danger); color: var(--fg-on-accent); }
+.record-bar { display: inline-flex; gap: 2px; }
+.record-bar .btn.apply:not(:disabled) { background: var(--accent); border-color: var(--accent); color: var(--fg-on-accent); }
+.record-bar .btn.cancel:not(:disabled):hover { background: var(--danger); border-color: var(--danger); color: var(--fg-on-accent); }
+
+/* ---------- feature tour ---------- */
+.tour { position: fixed; inset: 0; z-index: 300; }
+.tour-dim { position: absolute; inset: 0; background: var(--bg-overlay); }
+.tour-hole { position: absolute; border-radius: var(--r-lg); box-shadow: 0 0 0 9999px var(--bg-overlay), 0 0 0 2px var(--focus); transition: left var(--dur-med) var(--ease-out), top var(--dur-med) var(--ease-out), width var(--dur-med) var(--ease-out), height var(--dur-med) var(--ease-out); pointer-events: none; }
+.tour-card { position: absolute; background: var(--bg-panel); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); padding: var(--sp-6); display: grid; gap: var(--sp-4); animation: pop var(--dur-med) var(--ease-out); transition: left var(--dur-med) var(--ease-out), top var(--dur-med) var(--ease-out); }
+.tour-step { font-size: var(--fs-xs); color: var(--fg-faint); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.tour-title { font-size: var(--fs-lg); font-weight: 600; }
+.tour-body { font-size: var(--fs-md); line-height: 1.55; color: var(--fg-muted); user-select: text; }
+.tour-body b { color: var(--fg); font-weight: 600; }
+.tour-missing { font-size: var(--fs-sm); color: var(--fg-faint); font-style: italic; }
+.tour-kbd { font-family: var(--font-ui); font-size: var(--fs-xs); padding: 1px 5px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--bg-elev); color: var(--fg); white-space: nowrap; }
+.tour-dots { display: flex; gap: 5px; }
+.tour-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
+.tour-dots span.past { background: color-mix(in srgb, var(--accent) 50%, var(--border-strong)); }
+.tour-dots span.on { background: var(--accent); width: 16px; border-radius: 3px; }
+.tour-actions { display: flex; align-items: center; gap: var(--sp-3); }
+.tour-startup { font-size: var(--fs-sm); color: var(--fg-muted); }

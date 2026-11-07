@@ -23,6 +23,9 @@ await mc.db('crm').collection('people').insertMany([{ name: 'Ana', age: 31, tags
 const ea = await electron.launch({ args: [join(app, 'out/main/index.js')], cwd: app, env: { ...process.env, LAGOON_USER_DATA: mkdtempSync(join(tmpdir(), 'tc-e2e-')) } })
 const welcome = await ea.firstWindow()
 await welcome.getByText('No connections yet.').waitFor()
+  await welcome.evaluate(() => window.api.call('settings.set', 'tour.onStartup', false))
+  await welcome.waitForTimeout(300) // the tour may have auto-opened before the setting landed
+  if (await welcome.locator('.tour').isVisible()) await welcome.keyboard.press('Escape')
   await welcome.waitForFunction(() => !document.querySelector('[inert]'))
 const save = (c) => welcome.evaluate((c) => window.api.call('conn.save', c), { id: '', passwordMode: 'none', safeMode: 0, ...c })
 const openWs = async (params) => {

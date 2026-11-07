@@ -58,6 +58,8 @@ export const DEFAULTS = {
   'csv.quote': 'auto',
   'csv.lineBreak': '\n',
   'csv.decimal': '.',
+  'tour.done': false, // legacy: true = seen
+  'tour.onStartup': true,
   // explain + snippets
   'explain.analyze': false,
   'explain.threshold': 30,

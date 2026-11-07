@@ -17,6 +17,9 @@ try {
   const w = await ea.firstWindow()
   w.on('pageerror', (e) => errors.push(e.message))
   await w.getByText('No connections yet.').waitFor()
+  await w.evaluate(() => window.api.call('settings.set', 'tour.onStartup', false))
+  await w.waitForTimeout(300) // the tour may have auto-opened before the setting landed
+  if (await w.locator('.tour').isVisible()) await w.keyboard.press('Escape')
   await w.waitForFunction(() => !document.querySelector('[inert]'))
   await w.evaluate(() => window.api.call('settings.set', 'table.defaultSort', 'pkAsc'))
   await w.evaluate(async () => {

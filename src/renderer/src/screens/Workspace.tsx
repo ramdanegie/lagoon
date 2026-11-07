@@ -4,6 +4,7 @@ import { DRIVERS, SAFE_MODES } from '@shared/types'
 import { call, fail, focusScope, isMac, on, setting, tip, toast, useCommands } from '../lib/api'
 import { useWs, setWs, ws, loadObjects, closeTab, newQueryTab, openTab, updateTab, ScopeContext, useScopes, openScope, scopeOfSession, setScope, closeConnection, updateConnInScopes, type Tab } from '../lib/ws'
 import { newConnection } from './Navigator'
+import { startTour } from '../components/Tour'
 import { Icon } from '../components/Icon'
 import { Resizer, confirmDialog, menuAt, menuBelow, promptDialog } from '../components/ui'
 import { Sidebar } from './Sidebar'
@@ -170,7 +171,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
     const activeInPane = list.find((t) => t.id === s.active) ?? list.find((t) => t.id === (n === s.activePane ? s.active : undefined)) ?? list[list.length - 1]
     return (
       <div className="main-area" onMouseDown={() => { if (s.activePane !== n) setWs({ activePane: n, active: activeInPane?.id ?? s.active }) }} style={{ outline: s.split && s.activePane === n ? '1px solid var(--accent)' : undefined, outlineOffset: -1 }}>
-        <div className="tabbar" role="tablist">
+        <div className="tabbar" role="tablist" data-tour={n === 0 ? 'tabs' : undefined}>
           {list.map((t) => {
             const dirty = (s.tabApis[t.id]?.pendingCount() ?? 0) > 0
             return (
@@ -207,6 +208,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
                 <button className="btn" onClick={() => setOverlay('restore')}><Icon name="upload" /> Restore database</button>
               </div>
               <div className="faint" style={{ fontSize: 'var(--fs-sm)' }}>Double-click a connection in the sidebar to open it.</div>
+              <button className="btn ghost sm" onClick={startTour}><Icon name="star" size={12} /> Take the feature tour</button>
             </div>
           ) : list.length === 0 ? (
             <div className="empty" style={{ alignContent: 'center', height: '100%' }}>
@@ -234,13 +236,14 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
         <div className="row nodrag">
           <button className={`btn icon ghost ${s.left ? 'on' : ''}`} title={tip('Left sidebar', 'view.left')} aria-label="Toggle left sidebar" onClick={() => setWs({ left: !s.left })}><Icon name="sidebarLeft" /></button>
           <button className="btn icon ghost" title={tip('Switch connection', 'conn.openConnection')} aria-label="Switch connection" onClick={() => setOverlay('conn')}><Icon name="plug" /></button>
-          <div className="seg" role="group" aria-label="Pending changes">
+          <div className="seg" role="group" aria-label="Pending changes" data-tour="pending">
             <button disabled={!pending} title={tip('Discard changes', 'edit.discard')} onClick={() => activeApi?.discard()}><Icon name="x" size={12} /></button>
             <button disabled={!pending} title={tip('Preview SQL', 'edit.preview')} onClick={() => setOverlay('preview')}><Icon name="eye" size={12} />{pending ? <span style={{ fontSize: 'var(--fs-xs)' }}>{pending}</span> : null}</button>
             <button disabled={!pending} title={tip('Commit changes', 'edit.commit')} onClick={() => void commitActive()}><Icon name="check" size={12} /></button>
           </div>
           <button
             className="btn icon ghost"
+            data-tour="safe"
             title={`Safe mode: ${SAFE_MODES[s.conn?.safeMode ?? 0]}`}
             aria-label="Safe mode"
             style={{ color: (s.conn?.safeMode ?? 0) > 0 ? 'var(--warning)' : undefined }}
@@ -249,7 +252,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
             <Icon name={(s.conn?.safeMode ?? 0) > 0 ? 'lock' : 'unlock'} />
           </button>
           {drv?.dialect && <button className="btn icon ghost" title={tip('Open database', 'conn.openDatabase')} aria-label="Open database" onClick={() => setOverlay('db')}><Icon name="db" /></button>}
-          {drv && drv.id !== 'redis' && <button className="btn icon ghost" title={tip('New SQL query', 'nav.newQuery')} aria-label="New query" onClick={() => newQueryTab()}><Icon name="sql" /></button>}
+          {(!drv || drv.id !== 'redis') && <button className="btn icon ghost" data-tour="new-query" title={tip('New SQL query', 'nav.newQuery')} aria-label="New query" disabled={!drv} onClick={() => newQueryTab()}><Icon name="sql" /></button>}
         </div>
         <div
           className="status-bar nodrag"
@@ -278,8 +281,8 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
           <Tools />
           <button className="btn icon ghost" title={tip('Reload', 'conn.reloadWorkspace')} aria-label="Reload" onClick={() => void reloadWorkspace()}><Icon name="refresh" /></button>
           {drv?.dialect && <button className="btn icon ghost" title="Metrics board" aria-label="Metrics board" onClick={() => openTab({ kind: 'metrics', title: 'Metrics' })}><Icon name="chart" /></button>}
-          <button className="btn icon ghost" title={tip('Open anything', 'nav.openAnything')} aria-label="Open anything" onClick={() => setOverlay('palette')}><Icon name="search" /></button>
-          <div className="seg" role="group" aria-label="Panels">
+          <button className="btn icon ghost" data-tour="palette" title={tip('Open anything', 'nav.openAnything')} aria-label="Open anything" onClick={() => setOverlay('palette')}><Icon name="search" /></button>
+          <div className="seg" role="group" aria-label="Panels" data-tour="panels">
             <button className={s.showConsole ? 'on' : ''} title={tip('Console log', 'view.console')} aria-label="Toggle console" onClick={() => setWs({ showConsole: !s.showConsole })}><Icon name="console" size={13} /></button>
             <button className={s.right ? 'on' : ''} title="Row details (Space)" aria-label="Toggle right sidebar" onClick={() => setWs({ right: !s.right })}><Icon name="sidebarRight" size={13} /></button>
           </div>

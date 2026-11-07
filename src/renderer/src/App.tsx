@@ -6,6 +6,7 @@ const Workspace = lazy(() => import('./screens/Workspace').then((m) => ({ defaul
 const SettingsModal = lazy(() => import('./screens/Settings').then((m) => ({ default: m.SettingsModal })))
 import { applyCustomTheme } from './lib/theme'
 import { PasscodeLock } from './screens/PasscodeLock'
+import { Tour, startTour } from './components/Tour'
 
 const params = new URLSearchParams(location.search)
 
@@ -38,6 +39,7 @@ export function App(): ReactNode {
   useCommands('global', {
     'app.settings': () => setSettings(true),
     'file.newWindow': () => void call('window.open', { view: 'main' }),
+    'help.tour': () => startTour(),
     'view.theme': () => {
       const cur = document.documentElement.dataset.theme
       void call('settings.set', 'theme', cur === 'dark' ? 'light' : 'dark')
@@ -52,6 +54,7 @@ export function App(): ReactNode {
       <MenuHost />
       <DialogHost />
       <Toasts />
+      <Tour />
       <PasscodeLock />
     </>
   )

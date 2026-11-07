@@ -62,7 +62,8 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
   const numW = Math.max(36, String((p.rowOffset ?? 0) + p.rows.length).length * 8 + 14)
   const total = numW + colWidths.reduce((a, b) => a + b, 0)
 
-  const v = useVirtualizer({ count: p.rows.length, getScrollElement: () => scroller.current, estimateSize: () => rowH, overscan: 24 })
+  // the sticky header sits on top of the first row: keep scrolled-to rows below it
+  const v = useVirtualizer({ count: p.rows.length, getScrollElement: () => scroller.current, estimateSize: () => rowH, overscan: 24, scrollPaddingStart: rowH })
 
   const setSel = (s: Sel | null): void => { setSelState(s); p.onSelect?.(s ? norm(s) : null) }
   useEffect(() => { if (sel && (sel.r0 >= p.rows.length || sel.r1 >= p.rows.length)) setSel(p.rows.length ? { r0: 0, c0: 0, r1: 0, c1: 0 } : null) }, [p.rows.length])
@@ -144,6 +145,7 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
       case 'PageDown': return moveTo(s.r1 + Math.floor((scroller.current?.clientHeight ?? 400) / rowH), s.c1, e.shiftKey)
       case 'PageUp': return moveTo(s.r1 - Math.floor((scroller.current?.clientHeight ?? 400) / rowH), s.c1, e.shiftKey)
       case 'Enter': if (!mod && !e.altKey) { e.preventDefault(); startEdit(s.r1, s.c1) } return
+      case 'F2': e.preventDefault(); startEdit(s.r1, s.c1); return
       case 'Tab': e.preventDefault(); return moveTo(s.r1, s.c1 + (e.shiftKey ? -1 : 1), false)
       case 'Escape': setSel(null); return
       case 'a': if (mod) { e.preventDefault(); setSel({ r0: 0, c0: 0, r1: n - 1, c1: p.columns.length - 1 }) } return
@@ -152,6 +154,8 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
   }
 
   const dragging = useRef(false)
+  // a click on the cell that is already selected starts editing, like a spreadsheet
+  const clickToEdit = useRef<{ r: number; c: number } | null>(null)
   const ns = sel ? norm(sel) : null
   const rows = v.getVirtualItems()
 
@@ -237,10 +241,13 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
                     onMouseDown={(e) => {
                       if (e.button === 1) return
                       if (e.button === 2 && inSel) return
+                      const single = !!ns && ns.r0 === ns.r1 && ns.c0 === ns.c1 && ns.r0 === r && ns.c0 === ci
+                      clickToEdit.current = single && e.button === 0 && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey ? { r, c: ci } : null
                       scroller.current?.focus()
                       dragging.current = e.button === 0
                       setSel(e.shiftKey && sel ? { ...sel, r1: r, c1: ci } : { r0: r, c0: ci, r1: r, c1: ci })
                     }}
+                    onClick={() => { const t = clickToEdit.current; clickToEdit.current = null; if (t && t.r === r && t.c === ci && p.editable) startEdit(r, ci) }}
                     onMouseEnter={() => { if (dragging.current && sel) setSel({ ...sel, r1: r, c1: ci }) }}
                     onDoubleClick={() => (p.editable ? startEdit(r, ci) : p.onActivate?.(r, ci))}
                     onContextMenu={(e) => p.onCellMenu?.(e, r, ci)}
@@ -260,7 +267,7 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
             className="grid-editor"
             autoFocus
             aria-label={`Edit ${p.columns[editing.c]?.name}`}
-            style={{ top: editing.r * rowH, left: numW + lefts[editing.c], width: Math.max(colWidths[editing.c], 160), height: rowH }}
+            style={{ top: editing.r * rowH, left: numW + lefts[editing.c], width: Math.max(colWidths[editing.c], 200), height: rowH, paddingRight: p.onFkPick && p.columns[editing.c]?.fk ? 70 : 48 }}
             value={editing.v}
             onChange={(e) => setEditing({ ...editing, v: e.target.value })}
             onBlur={() => commitEdit()}
@@ -272,12 +279,19 @@ export const Grid = forwardRef<GridHandle, Props>(function Grid(p, ref) {
             }}
           />
         )}
+        {editing && (
+          // keep focus in the input on mousedown so ✗ cancels instead of the blur committing first
+          <div className="grid-edit-actions" style={{ top: editing.r * rowH + 1, left: numW + lefts[editing.c] + Math.max(colWidths[editing.c], 200) - 46, height: rowH - 2 }}>
+            <button className="ok" title="Save this cell (Enter)" aria-label="Save cell" onMouseDown={(e) => e.preventDefault()} onClick={() => commitEdit()}><Icon name="check" size={11} /></button>
+            <button className="no" title="Cancel (Esc)" aria-label="Cancel edit" onMouseDown={(e) => e.preventDefault()} onClick={() => { setEditing(null); scroller.current?.focus() }}><Icon name="x" size={11} /></button>
+          </div>
+        )}
         {editing && p.onFkPick && p.columns[editing.c]?.fk && (
           <button
             className="btn sm icon"
             title="Choose from referenced table (⇧⌘↩)"
             aria-label="Choose from referenced table"
-            style={{ position: 'absolute', zIndex: 5, top: editing.r * rowH + 1, left: numW + lefts[editing.c] + Math.max(colWidths[editing.c], 160) - 22, height: rowH - 2 }}
+            style={{ position: 'absolute', zIndex: 5, top: editing.r * rowH + 1, left: numW + lefts[editing.c] + Math.max(colWidths[editing.c], 200) - 70, height: rowH - 2 }}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => { const { r, c } = editing; setEditing(null); p.onFkPick?.(r, c) }}
           ><Icon name="more" size={11} /></button>

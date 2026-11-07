@@ -14,7 +14,7 @@ mkdirSync(shots, { recursive: true })
 const psql = (sql) => execSync(`psql -h 127.0.0.1 -p 54400 -U tc -d shop -At -c "${sql}"`, { encoding: 'utf8' }).trim()
 const step = (m) => console.log('•', m)
 
-psql("update customers set name = 'Customer 1' where id = 1")
+psql("update customers set name = 'Customer ' || id where id in (1, 2, 3)")
 const userData = mkdtempSync(join(tmpdir(), 'tc-e2e-'))
 const electronApp = await electron.launch({ args: [join(app, 'out/main/index.js')], cwd: app, env: { ...process.env, LAGOON_USER_DATA: userData } })
 const command = (id) => electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows().find((w) => w.isFocused() || true)?.webContents.send('command', id), id)
@@ -24,6 +24,9 @@ try {
   welcome.on('console', (m) => m.type() === 'error' && console.log('  [welcome console]', m.text()))
   await welcome.setViewportSize?.({ width: 860, height: 560 })
   await welcome.getByText('No connections yet.').waitFor()
+  await welcome.evaluate(() => window.api.call('settings.set', 'tour.onStartup', false))
+  await welcome.waitForTimeout(300) // the tour may have auto-opened before the setting landed
+  if (await welcome.locator('.tour').isVisible()) await welcome.keyboard.press('Escape')
   await welcome.waitForFunction(() => !document.querySelector('[inert]'))
   await welcome.screenshot({ path: join(shots, 'S01-empty.png') })
   step('welcome empty state')
@@ -64,7 +67,7 @@ try {
   await ws.getByLabel('Edit name').fill('Renamed by e2e')
   await ws.keyboard.press('Enter')
   await ws.getByText('1 pending').waitFor()
-  await ws.getByTitle(/Preview SQL/).click()
+  await ws.getByTitle(/Preview SQL/).first().click()
   await ws.getByText(/UPDATE "public"."customers" SET "name" = 'Renamed by e2e' WHERE "id" = 1;/).waitFor()
   await ws.screenshot({ path: join(shots, 'S15-preview.png') })
   await ws.getByRole('button', { name: 'Commit', exact: true }).click()
@@ -72,10 +75,32 @@ try {
   assert.equal(psql('select name from customers where id = 1'), 'Renamed by e2e')
   step('edit + preview + commit wrote to the database')
 
-  // add a row, delete it again via discard
-  await ws.getByRole('button', { name: /Row/ }).first().click()
+  // spreadsheet-style edit: click the selected cell again, save with the inline ✓
+  const c2 = ws.getByRole('gridcell', { name: 'Customer 2', exact: true })
+  await ws.getByRole('gridcell', { name: 'c4@example.com', exact: true }).click()
+  await c2.click() // select
+  await c2.click() // click the selected cell again → edit
+  await ws.getByLabel('Edit name').fill('Inline two')
+  await ws.getByRole('button', { name: 'Save cell' }).click()
   await ws.getByText('1 pending').waitFor()
-  await ws.getByTitle(/Discard changes/).click()
+  // record bar ✗ discards, then edit again and ✓ saves to the database
+  await ws.getByRole('button', { name: 'Discard changes' }).last().click()
+  await ws.getByText('1 pending').waitFor({ state: 'detached' })
+  await ws.getByRole('gridcell', { name: 'c4@example.com', exact: true }).click()
+  await c2.click()
+  await ws.keyboard.press('F2')
+  await ws.getByLabel('Edit name').fill('Inline two')
+  await ws.getByRole('button', { name: 'Cancel edit' }).waitFor()
+  await ws.keyboard.press('Enter')
+  await ws.getByRole('button', { name: 'Save changes' }).last().click()
+  await ws.getByText(/change committed/).first().waitFor()
+  assert.equal(psql('select name from customers where id = 2'), 'Inline two')
+  step('click-to-edit, inline ✓/✗ and the record bar save to the database')
+
+  // add a row, delete it again via discard
+  await ws.getByRole('button', { name: 'Add row' }).first().click()
+  await ws.getByText('1 pending').waitFor()
+  await ws.getByTitle(/Discard changes/).first().click()
   await ws.getByText('1 pending').waitFor({ state: 'detached' })
   step('add row + discard')
 
@@ -118,11 +143,27 @@ try {
   await ws.getByText(/division by zero/).first().waitFor()
   step('SQL editor: two statements, result tabs, error tab')
 
+  // query results from a single table are editable too
+  await ws.locator('.cm-content').last().click()
+  await ws.keyboard.press('Meta+a')
+  await ws.keyboard.type('select id, name, city from customers where id <= 5 order by id')
+  await ws.getByRole('button', { name: /Run Current|Run All/ }).first().click()
+  await ws.getByText('Editable · customers').waitFor()
+  const r3 = ws.getByRole('gridcell', { name: 'Customer 3', exact: true })
+  await r3.dblclick()
+  await ws.getByLabel('Edit name').fill('Edited in results')
+  await ws.keyboard.press('Enter')
+  await ws.getByText(/1 pending/).first().waitFor()
+  await ws.getByRole('button', { name: 'Save changes' }).last().click()
+  await ws.getByText(/saved to customers/).waitFor()
+  assert.equal(psql('select name from customers where id = 3'), 'Edited in results')
+  step('single-table query result edited inline and saved')
+
   // Visual Explain on the first statement
   await ws.locator('.cm-content').last().click()
   await ws.keyboard.press('Meta+ArrowUp')
   await ws.getByRole('button', { name: 'Explain', exact: true }).click()
-  await ws.getByText(/Seq Scan|HashAggregate|Sort/).first().waitFor({ timeout: 15000 })
+  await ws.getByText(/Index Scan|Seq Scan|Aggregate|Sort/).first().waitFor({ timeout: 15000 })
   await ws.screenshot({ path: join(shots, 'S17-explain.png') })
   step('Visual Explain renders a plan tree')
 
@@ -142,6 +183,9 @@ try {
   step('safe mode switched (reads in table view are not gated)')
 
   console.log('\nE2E OK — screenshots in', shots)
+} catch (e) {
+  for (const [i, w] of electronApp.windows().entries()) await w.screenshot({ path: join(shots, `FAIL-${i}.png`) }).catch(() => {})
+  throw e
 } finally {
   await electronApp.close()
 }

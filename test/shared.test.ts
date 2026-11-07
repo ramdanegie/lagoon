@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { splitStatements, isReadOnly, statementAt, findParams, applyParams, resultName, chartDirective, withRowLimit } from '../src/shared/split.ts'
+import { splitStatements, isReadOnly, statementAt, findParams, applyParams, resultName, chartDirective, withRowLimit, singleTableOf } from '../src/shared/split.ts'
 import { lit, selectSql, updateSql, insertSql, deleteSql, filterSql, alterColumnSql, createTableSql } from '../src/shared/sqlgen.ts'
 
 test('split respects strings, comments, dollar quotes', () => {
@@ -78,4 +78,21 @@ test('params, names, charts, limits', () => {
   assert.equal(withRowLimit('select * from t;', 100), 'select * from t LIMIT 100')
   assert.equal(withRowLimit('select * from t limit 5', 100), 'select * from t limit 5')
   assert.equal(withRowLimit('update t set a=1', 100), 'update t set a=1')
+})
+
+test('singleTableOf: only plain single-table selects are editable', () => {
+  assert.deepEqual(singleTableOf('select * from customers'), { table: 'customers' })
+  assert.deepEqual(singleTableOf('SELECT id, name FROM public.customers WHERE city = \'x\' ORDER BY id LIMIT 10;'), { schema: 'public', table: 'customers' })
+  assert.deepEqual(singleTableOf('select * from "My Schema"."Order Items" o where o.id > 1'), { schema: 'My Schema', table: 'Order Items' })
+  assert.deepEqual(singleTableOf('select * from `shop`.`products`'), { schema: 'shop', table: 'products' })
+  assert.deepEqual(singleTableOf('-- name: x\nselect * from t as a'), { table: 't' })
+  assert.equal(singleTableOf('select * from a join b on a.id = b.id'), null)
+  assert.equal(singleTableOf('select * from a, b'), null)
+  assert.equal(singleTableOf('select city, count(*) from customers group by city'), null)
+  assert.equal(singleTableOf('select distinct city from customers'), null)
+  assert.equal(singleTableOf('select * from (select 1) x'), null)
+  assert.equal(singleTableOf('with x as (select 1) select * from x'), null)
+  assert.equal(singleTableOf('select * from a union select * from b'), null)
+  assert.equal(singleTableOf('update t set a = 1'), null)
+  assert.deepEqual(singleTableOf("select * from t where note = 'join group by'"), { table: 't' })
 })

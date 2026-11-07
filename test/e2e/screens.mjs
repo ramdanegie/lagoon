@@ -16,6 +16,9 @@ const step = (m) => console.log('•', m)
 try {
   const welcome = await ea.firstWindow()
   await welcome.getByText('No connections yet.').waitFor()
+  await welcome.evaluate(() => window.api.call('settings.set', 'tour.onStartup', false))
+  await welcome.waitForTimeout(300) // the tour may have auto-opened before the setting landed
+  if (await welcome.locator('.tour').isVisible()) await welcome.keyboard.press('Escape')
   await welcome.waitForFunction(() => !document.querySelector('[inert]'))
   const c = await welcome.evaluate(() => window.api.call('conn.save', { id: '', name: 'Shop', driver: 'postgres', host: '127.0.0.1', port: 54400, username: 'tc', database: 'shop', passwordMode: 'none', safeMode: 0 }))
   await welcome.evaluate((id) => window.api.call('window.open', { view: 'workspace', conn: id }), c.id)

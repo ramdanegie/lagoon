@@ -58,6 +58,9 @@ const t0 = Date.now()
 const ea = await electron.launch({ args: [join(app, 'out/main/index.js')], cwd: app, env: { ...process.env, LAGOON_USER_DATA: join(tmp, 'ud') } })
 const welcome = await ea.firstWindow()
 await welcome.getByText('No connections yet.').waitFor()
+  await welcome.evaluate(() => window.api.call('settings.set', 'tour.onStartup', false))
+  await welcome.waitForTimeout(300) // the tour may have auto-opened before the setting landed
+  if (await welcome.locator('.tour').isVisible()) await welcome.keyboard.press('Escape')
 results.coldStartMs = Date.now() - t0
 await sleep(4000)
 const needle = join(app, 'node_modules/electron')

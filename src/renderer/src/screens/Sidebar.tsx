@@ -49,7 +49,7 @@ export function Sidebar(): ReactNode {
           <input id="sidebar-search" className="input grow sm" placeholder={tab === 'items' ? 'Search connections and tables' : tab === 'queries' ? 'Search queries' : 'Search history'} aria-label="Search sidebar" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && setQ('')} />
           {tab === 'items' && (
             <>
-              <button className="btn ghost icon sm" aria-label="New connection" title="New connection" onClick={newConnection}><Icon name="plus" size={12} /></button>
+              <button className="btn ghost icon sm" data-tour="new-conn" aria-label="New connection" title="New connection" onClick={newConnection}><Icon name="plus" size={12} /></button>
               <button className="btn ghost icon sm" aria-label="Sidebar options" title="Sidebar options" onClick={(e) => menuBelow(e.currentTarget, [
                 { label: 'Search in Database…', disabled: !s.dialect, onClick: () => setWs({ sidebarSearch: true }) },
                 { sep: true },
@@ -60,7 +60,7 @@ export function Sidebar(): ReactNode {
           )}
         </div>
       </div>
-      <div className="grow" style={{ overflow: 'auto', padding: '0 var(--sp-3)' }}>
+      <div className="grow" style={{ overflow: 'auto', padding: '0 var(--sp-3)' }} data-tour={tab === 'items' ? 'tree' : undefined}>
         {tab === 'items' && <Navigator filter={q} />}
         {tab === 'queries' && <QueriesPanel filter={q} />}
         {tab === 'history' && (s.conn ? <HistoryPanel filter={q} /> : <div className="empty">Select a connection to see its history.</div>)}

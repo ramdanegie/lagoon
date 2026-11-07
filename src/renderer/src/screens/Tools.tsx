@@ -65,6 +65,7 @@ export function Tools(): ReactNode {
       <Notifications />
       <button
         className="btn icon ghost"
+        data-tour="tools"
         title="Tools"
         aria-label="Tools"
         onClick={(e) =>

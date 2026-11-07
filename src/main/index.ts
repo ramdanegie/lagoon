@@ -75,7 +75,7 @@ export function buildMenu(): void {
     { label: 'Connection', submenu: group('Connection') },
     { label: 'Navigate', submenu: group('Navigate') },
     { role: 'windowMenu' },
-    { role: 'help', submenu: [{ label: 'Keyboard Shortcuts', click: send('help.shortcuts') }] }
+    { role: 'help', submenu: [{ label: 'Feature Tour', click: send('help.tour') }, { label: 'Keyboard Shortcuts', click: send('help.shortcuts') }] }
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }

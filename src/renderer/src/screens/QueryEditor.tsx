@@ -445,6 +445,7 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
         <>
           <Resizer vertical onDrag={(dy) => setEditorH((h) => Math.max(60, Math.min(window.innerHeight - 200, h + dy)))} />
           <ResultsPane
+            tabId={tab.id}
             tabs={results}
             active={activeResult}
             onActive={setActiveResult}

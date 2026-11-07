@@ -618,9 +618,14 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
         </div>
         {view === 'data' && (
           <>
-            <button className="btn sm" disabled={!editable} title="Add row (⌘I)" onClick={() => addRow()}><Icon name="plus" size={11} /> Row</button>
+            <div className="record-bar" role="group" aria-label="Record actions" data-tour="record-bar">
+              <button className="btn sm icon" disabled={!editable} title="Add row (⌘I)" aria-label="Add row" onClick={() => addRow()}><Icon name="plus" size={11} /></button>
+              <button className="btn sm icon" disabled={!editable || !sel} title="Delete selected rows (⌫)" aria-label="Delete selected rows" onClick={toggleDelete}><Icon name="minus" size={11} /></button>
+              <button className="btn sm icon apply" disabled={!pending} title={`Save changes (⌘S)${pending ? ` · ${pending} pending` : ''}`} aria-label="Save changes" onClick={() => void apiRef.current.commit()}><Icon name="check" size={11} /></button>
+              <button className="btn sm icon cancel" disabled={!pending} title="Discard changes (⇧⌘⌫)" aria-label="Discard changes" onClick={() => apiRef.current.discard()}><Icon name="x" size={11} /></button>
+            </div>
             <button id={`cols-btn-${tab.id}`} className={`btn sm ${visible ? 'on' : ''}`} title="Choose columns (⌥⌘F)" onClick={(e) => setPop({ kind: 'columns', el: e.currentTarget })}><Icon name="columns" size={11} /> Columns</button>
-            <button className={`btn sm ${showFilters || applied.some((f) => f.enabled) ? 'on' : ''}`} title="Filters (⌘F)" onClick={() => { setShowFilters(!showFilters); saveState({ showFilters: !showFilters }) }}><Icon name="filter" size={11} /> Filters{applied.filter((f) => f.enabled).length ? ` (${applied.filter((f) => f.enabled).length})` : ''}</button>
+            <button data-tour="filters" className={`btn sm ${showFilters || applied.some((f) => f.enabled) ? 'on' : ''}`} title="Filters (⌘F)" onClick={() => { setShowFilters(!showFilters); saveState({ showFilters: !showFilters }) }}><Icon name="filter" size={11} /> Filters{applied.filter((f) => f.enabled).length ? ` (${applied.filter((f) => f.enabled).length})` : ''}</button>
             <button className={`btn sm ${finding ? 'on' : ''}`} title="Find and replace in loaded rows" onClick={() => setFinding(!finding)}><Icon name="search" size={11} /> Find</button>
             <button className={`btn sm ${(profiles[stateKey] ?? []).length ? 'on' : ''}`} title="Saved filters, sort and column layouts for this table" onClick={(e) => profileMenu(e.currentTarget)}><Icon name="star" size={11} /> Profiles{(profiles[stateKey] ?? []).length ? ` (${(profiles[stateKey] ?? []).length})` : ''}</button>
             <button className={`btn sm ${showHist ? 'on' : ''}`} title="SQL sent by this tab this session" onClick={() => setShowHist(!showHist)}><Icon name="history" size={11} /> History</button>

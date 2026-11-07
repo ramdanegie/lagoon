@@ -140,3 +140,23 @@ export function withRowLimit(sql: string, limit: number | null | undefined): str
   if (!/^(select|with)\b/i.test(s) || /\blimit\s+\d+/i.test(s) || /\bfetch\s+first\b/i.test(s)) return sql
   return sql.replace(/;\s*$/, '') + ` LIMIT ${limit}`
 }
+
+const IDENT = String.raw`(?:"(?:[^"]|"")+"|\`(?:[^\`]|\`\`)+\`|\[[^\]]+\]|[A-Za-z_][\w$]*)`
+const unq = (s: string): string => (/^["`[]/.test(s) ? s.slice(1, -1).replace(/""/g, '"').replace(/``/g, '`') : s)
+
+/**
+ * The table a SELECT reads when its result can be edited row by row: one table, no joins, grouping, DISTINCT,
+ * set operations, CTEs or subqueries in FROM. Anything else returns null (results stay read-only).
+ */
+export function singleTableOf(sql: string): { schema?: string; table: string } | null {
+  const s = stripComments(sql).trim().replace(/;\s*$/, '')
+  if (!/^select\b/i.test(s)) return null
+  const masked = s.replace(/'(?:[^']|'')*'/g, "''")
+  if (/\b(join|union|intersect|except|group\s+by|having|distinct|window|over)\b/i.test(masked)) return null
+  if (/\bselect\b[\s\S]*\bselect\b/i.test(masked)) return null // subquery anywhere
+  const m = new RegExp(String.raw`\bfrom\s+(${IDENT})(?:\s*\.\s*(${IDENT}))?(\s+(?:as\s+)?${IDENT})?\s*(?:$|\b(where|order|limit|offset|fetch|for)\b)`, 'i').exec(masked)
+  if (!m) return null
+  const alias = m[3]?.trim().replace(/^as\s+/i, '')
+  if (alias && /^(where|order|limit|offset|fetch|for)$/i.test(alias)) return null
+  return m[2] ? { schema: unq(m[1]), table: unq(m[2]) } : { table: unq(m[1]) }
+}
