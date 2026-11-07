@@ -25,7 +25,7 @@ export function lit(d: Dialect, v: CellValue, type?: string): string {
 }
 
 export const isNumericType = (t: string): boolean =>
-  /^(small|big|tiny|medium)?int|integer|serial|numeric|decimal|real|double|float|number/i.test(t.trim())
+  /^(small|big|tiny|medium)?int(?!erval)|integer|serial|numeric|decimal|real|double|float|number/i.test(t.trim())
 
 const textCast = (d: Dialect, col: string): string => (d === 'postgres' ? `CAST(${col} AS TEXT)` : d === 'mysql' ? `CAST(${col} AS CHAR)` : col)
 

@@ -92,3 +92,27 @@ test('insertManySql conflict modes', () => {
   assert.match(m.insertManySql('mysql', 'db', 't', ['id', 'n'], rows, [], 'update'), /ON DUPLICATE KEY UPDATE `id` = VALUES\(`id`\), `n` = VALUES\(`n`\)$/)
   assert.match(m.insertManySql('mysql', 'db', 't', ['id'], [[1]], [], 'replace'), /^REPLACE INTO `db`\.`t`/)
 })
+
+test('import modes: skip, upsert on SQLite, update, delete, truncate, key validation', () => {
+  const rows = [[1, 'a'], [2, null]]
+  const cols = ['id', 'n']
+  assert.match(m.insertManySql('postgres', 'public', 't', cols, rows, [], 'skip'), /^INSERT INTO "public"\."t" .* ON CONFLICT DO NOTHING$/s)
+  assert.match(m.insertManySql('mysql', 'db', 't', cols, rows, [], 'skip'), /^INSERT IGNORE INTO `db`\.`t`/)
+  assert.match(m.insertManySql('sqlite', 'main', 't', cols, rows, [], 'skip'), /^INSERT OR IGNORE INTO "t"/)
+  assert.match(m.insertManySql('sqlite', 'main', 't', cols, rows, [], 'update', ['id']), /ON CONFLICT \("id"\) DO UPDATE SET "n" = EXCLUDED\."n"$/)
+  assert.match(m.insertManySql('sqlite', 'main', 't', cols, rows, [], 'replace'), /^INSERT OR REPLACE INTO "t"/)
+  assert.deepEqual(m.importBatchSql('postgres', 'public', 't', cols, rows, ['integer', 'text'], 'updateOnly', ['id']), [
+    'UPDATE "public"."t" SET "n" = \'a\' WHERE "id" = 1',
+    'UPDATE "public"."t" SET "n" = NULL WHERE "id" = 2'
+  ])
+  assert.deepEqual(m.importBatchSql('mysql', 'db', 't', cols, rows, ['int', 'text'], 'delete', ['id']), ['DELETE FROM `db`.`t` WHERE `id` IN (1, 2)'])
+  assert.deepEqual(m.importBatchSql('postgres', 'public', 't', ['a', 'b', 'v'], [[1, 'x', 0]], [], 'delete', ['a', 'b']), ['DELETE FROM "public"."t" WHERE ("a" = 1 AND "b" = \'x\')'])
+  assert.match(m.importBatchSql('postgres', 'public', 't', cols, rows, [], 'truncate', [])[0], /^INSERT INTO "public"\."t" \("id", "n"\) VALUES/)
+  assert.throws(() => m.importBatchSql('postgres', 'public', 't', cols, rows, [], 'updateOnly', []), /needs key columns/)
+  assert.throws(() => m.importBatchSql('postgres', 'public', 't', ['n'], [['a']], [], 'delete', ['id']), /not imported/)
+  assert.throws(() => m.importBatchSql('postgres', 'public', 't', ['id'], [[1]], [], 'updateOnly', ['id']), /Nothing to update/)
+  assert.equal(m.needsKeys('update', 'mysql'), false)
+  assert.equal(m.needsKeys('update', 'postgres'), true)
+  assert.equal(m.needsKeys('skip', 'postgres'), false)
+  assert.equal(m.needsKeys('delete', 'mysql'), true)
+})

@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import type { FilterOp } from '@shared/types'
-import { call, fail, on, uid } from '../lib/api'
+import type { FilterOp, ObjectKind } from '@shared/types'
+import type { NameMode } from '@shared/dictionary'
+import { call, errText, fail, on, uid } from '../lib/api'
 import { useWs, openTab } from '../lib/ws'
 import { Icon } from '../components/Icon'
 import '../styles/admin.css'
@@ -10,8 +11,28 @@ const MATCH: [string, FilterOp][] = [['Contains', 'Contains'], ['Does not contai
 interface Msg { searchId: string; schema?: string; table?: string; count?: number; error?: string; done?: number; total: number; finished?: boolean; stopped?: boolean }
 interface Hit { schema: string; table: string; count: number }
 
-/** Search cell values across tables of the current schema. Rendered in the left sidebar in place of the item tree. */
+/** Search in database, rendered in the left sidebar in place of the item tree: cell values (Data) or object names (Structure). */
 export function SearchPanel({ onDone }: { onDone: () => void }): ReactNode {
+  const [mode, setMode] = useState<'data' | 'structure'>('data')
+  return (
+    <div className="sp" aria-label="Search in database">
+      <div className="row">
+        <span className="section-title" style={{ padding: 0 }}>Search in database</span>
+        <span className="grow" />
+        <button className="btn sm" onClick={onDone}>Done</button>
+      </div>
+      <div className="seg" role="tablist" aria-label="Look in">
+        {(['data', 'structure'] as const).map((m) => (
+          <button key={m} role="tab" aria-selected={mode === m} className={`grow ${mode === m ? 'on' : ''}`} onClick={() => setMode(m)}>{m === 'data' ? 'Data' : 'Structure'}</button>
+        ))}
+      </div>
+      {mode === 'data' ? <DataSearch onDone={onDone} /> : <StructureSearch onDone={onDone} />}
+    </div>
+  )
+}
+
+/** Search cell values across tables of the current schema. */
+function DataSearch({ onDone }: { onDone: () => void }): ReactNode {
   const sessionId = useWs((s) => s.sessionId)
   const schema = useWs((s) => s.schema)
   const objects = useWs((s) => s.objects)
@@ -61,12 +82,7 @@ export function SearchPanel({ onDone }: { onDone: () => void }): ReactNode {
   const shown = tables.filter((t) => t.name.toLowerCase().includes(find.toLowerCase()))
 
   return (
-    <div className="sp" aria-label="Search in database">
-      <div className="row">
-        <span className="section-title" style={{ padding: 0 }}>Search in database</span>
-        <span className="grow" />
-        <button className="btn sm" onClick={onDone}>Done</button>
-      </div>
+    <>
       <input
         className="input"
         autoFocus
@@ -131,6 +147,75 @@ export function SearchPanel({ onDone }: { onDone: () => void }): ReactNode {
           </details>
         )}
       </div>
-    </div>
+    </>
+  )
+}
+
+interface StructHit { kind: 'table' | 'view' | 'column' | 'index' | 'function'; name: string; objKind: ObjectKind; table?: string; inDefinition?: boolean }
+const NAME_MODES: [NameMode, string][] = [['contains', 'Contains'], ['word', 'Whole word'], ['prefix', 'Starts with'], ['regex', 'Regular expression']]
+const GROUPS: [StructHit['kind'], string][] = [['table', 'Tables'], ['view', 'Views'], ['column', 'Columns'], ['index', 'Indexes'], ['function', 'Functions']]
+
+/** Search object names (and optionally view / function definitions) of the current schema. */
+function StructureSearch({ onDone }: { onDone: () => void }): ReactNode {
+  const sessionId = useWs((s) => s.sessionId)
+  const schema = useWs((s) => s.schema)
+  const [text, setText] = useState('')
+  const [mode, setMode] = useState<NameMode>('contains')
+  const [matchCase, setMatchCase] = useState(false)
+  const [defs, setDefs] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [hits, setHits] = useState<StructHit[] | null>(null)
+  const [err, setErr] = useState('')
+
+  const start = (): void => {
+    if (!text || busy) return
+    setBusy(true); setErr('')
+    call<StructHit[]>('search.structure', sessionId, schema ?? '', text, mode, matchCase, defs)
+      .then(setHits, (e) => { setHits(null); setErr(errText(e)) })
+      .finally(() => setBusy(false))
+  }
+  const open = (h: StructHit): void => {
+    const name = h.table ?? h.name
+    if (h.kind === 'function') openTab({ kind: 'ddl', title: h.name, schema, name: h.name, objKind: h.objKind }, { newTab: true })
+    else openTab({ kind: 'table', title: name, schema, name, objKind: h.objKind, view: h.kind === 'column' ? 'structure' : h.kind === 'index' ? 'index' : 'data' }, { newTab: true })
+  }
+
+  return (
+    <>
+      <input
+        className="input"
+        autoFocus
+        placeholder="Name to find"
+        aria-label="Name to find"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') start(); if (e.key === 'Escape') onDone() }}
+      />
+      <select className="select" aria-label="Match type" value={mode} onChange={(e) => setMode(e.target.value as NameMode)}>
+        {NAME_MODES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+      </select>
+      <label className="check"><input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Match case</label>
+      <label className="check"><input type="checkbox" checked={defs} onChange={(e) => setDefs(e.target.checked)} /> Also search view and function definitions</label>
+      <button className="btn primary" disabled={!text || busy} onClick={start}><Icon name="search" size={12} />{busy ? 'Searching…' : 'Search'}</button>
+      {err && <div className="danger-text selectable sp-status">{err}</div>}
+      {hits && <div className="sp-status" aria-live="polite">{hits.length ? `${hits.length} match${hits.length === 1 ? '' : 'es'} in ${schema || 'this schema'}` : 'No matches'}</div>}
+      <div className="sp-results" role="list" aria-label="Search results">
+        {GROUPS.map(([kind, label]) => {
+          const list = (hits ?? []).filter((h) => h.kind === kind)
+          return list.length > 0 && (
+            <div key={kind} role="group" aria-label={label}>
+              <div className="section-title">{label} <span className="faint">{list.length}</span></div>
+              {list.map((h) => (
+                <button key={`${h.table ?? ''}.${h.name}`} role="listitem" className="list-item adm-item" title={h.table ? `${h.table}.${h.name}` : h.name} onClick={() => open(h)}>
+                  <Icon name={kind === 'column' ? 'columns' : kind === 'index' ? 'key' : h.objKind} size={13} className="faint" />
+                  <span className="ellipsis">{h.name}</span>
+                  {(h.table || h.inDefinition) && <span className="count">{h.inDefinition ? 'in definition' : h.table}</span>}
+                </button>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }

@@ -3,10 +3,10 @@ import { type ReactNode, type MouseEvent as RME, useEffect, useState } from 'rea
 import { create } from 'zustand'
 import type { Column, DbObject, JobProgress } from '@shared/types'
 import { TYPE_LIST, qt } from '@shared/sqlgen'
-import { matchColumns, detectType, textType, expandPattern, CSV_DEFAULTS, type CsvOut, type Matching, type Conflict } from '@shared/importexport'
+import { matchColumns, detectType, textType, expandPattern, needsKeys, CSV_DEFAULTS, type CsvOut, type Matching, type Conflict } from '@shared/importexport'
 import { call, on, toast, fail, errText } from '../lib/api'
 import { useWs, ws, guard, loadObjects } from '../lib/ws'
-import { Modal, Popover, menuAt, type MenuItem } from '../components/ui'
+import { Modal, Popover, confirmDialog, menuAt, type MenuItem } from '../components/ui'
 import { Grid } from '../components/Grid'
 import { Icon } from '../components/Icon'
 import '../styles/importexport.css'
@@ -92,6 +92,15 @@ function Choice({ id, label, value, options, custom, onChange }: { id: string; l
 }
 
 type Preview = { columns: string[]; rows: unknown[][] } & { text?: string }
+const MODES: [Conflict, string][] = [
+  ['stop', 'Append: insert rows, stop on a duplicate key'],
+  ['skip', 'Skip existing: insert only rows with new keys'],
+  ['update', 'Upsert: insert new rows, update existing ones'],
+  ['updateOnly', 'Update: change matching rows, ignore the rest'],
+  ['replace', 'Replace: delete and re-insert existing rows'],
+  ['delete', 'Delete matching: remove rows whose key is in the file'],
+  ['truncate', 'Empty the table, then insert']
+]
 type Over = Record<number, { dest?: string | null; type?: string }>
 
 // ---------- import ----------
@@ -116,6 +125,7 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
   const [matching, setMatching] = useState<Matching>('nameOrder')
   const [ci, setCi] = useState(false)
   const [conflict, setConflict] = useState<Conflict>('stop')
+  const [keyPick, setKeyPick] = useState<string[] | null>(null) // null: the primary key
   const [destCols, setDestCols] = useState<Column[]>([])
   const [over, setOver] = useState<Over>({})
   const [jobId, setJobId] = useState<string>()
@@ -143,8 +153,11 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
   const typeOf = (i: number): string => over[i]?.type ?? (allText ? textType(dialect) : detectType(sample(i), dialect))
   const setCol = (i: number, p: Over[number]): void => setOver((o) => ({ ...o, [i]: { ...o[i], ...p } }))
   const tableName = dest === 'new' ? newName.trim() : target
-  const canRun = !!path && !!preview && !job && (kind === 'sql' || (schema !== undefined && !!tableName && map.some(Boolean)))
-  const hasConflict = dialect !== 'sqlite'
+  const mode: Conflict = dest === 'new' ? 'stop' : conflict
+  const mapped = [...new Set(map.filter((m): m is string => !!m))]
+  const keys = (keyPick ?? cols.filter((c) => c.pk).map((c) => c.name)).filter((k) => mapped.includes(k))
+  const wantKeys = kind !== 'sql' && needsKeys(mode, dialect)
+  const canRun = !!path && !!preview && !job && (kind === 'sql' || (schema !== undefined && !!tableName && map.some(Boolean) && (!wantKeys || keys.length > 0)))
 
   const headerMenu = (name: string, e: RME): void => {
     const i = src.indexOf(name)
@@ -158,10 +171,13 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
     if (!sessionId) return
     const create = kind !== 'sql' && dest === 'new' ? src.flatMap((_s, i) => (map[i] ? [{ name: map[i]!, type: typeOf(i) }] : [])) : undefined
     const file = path.split(/[\\/]/).pop()
-    const summary = kind === 'sql' ? [`-- Run every statement in ${file}`] : [...(create ? [`CREATE TABLE ${qt(dialect, schema, tableName)} (…)`] : []), `INSERT INTO ${qt(dialect, schema, tableName)} … -- rows from ${file}`]
+    const t = qt(dialect, schema, tableName)
+    if (mode === 'truncate' && !(await confirmDialog(`Empty ${tableName} first?`, `Every row in ${tableName} is deleted, then the rows from ${file} are inserted. Both run in one transaction, so a failed import keeps the old rows.`, { ok: 'Empty and import', danger: true }))) return
+    const write = mode === 'updateOnly' ? `UPDATE ${t} SET … WHERE … -- rows from ${file}` : mode === 'delete' ? `DELETE FROM ${t} WHERE … -- keys from ${file}` : `INSERT INTO ${t} … -- rows from ${file}`
+    const summary = kind === 'sql' ? [`-- Run every statement in ${file}`] : [...(create ? [`CREATE TABLE ${t} (…)`] : []), ...(mode === 'truncate' ? [`DELETE FROM ${t}`] : []), write]
     if (!(await guard(summary))) return
     try {
-      setJobId(await call<string>('import.run', sessionId, { kind, path, encoding, delimiter, quote, header, schema, table: tableName, create, map, conflict }))
+      setJobId(await call<string>('import.run', sessionId, { kind, path, encoding, delimiter, quote, header, schema, table: tableName, create, map, conflict: mode, keys: wantKeys ? keys : undefined }))
     } catch (e) { fail(e) }
   }
 
@@ -212,7 +228,7 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
               <legend>Destination</legend>
               <div className="field">
                 <label htmlFor="ie-dest">Table</label>
-                <select id="ie-dest" className="select" value={dest === 'new' ? '__new' : target} onChange={(e) => { setOver({}); if (e.target.value === '__new') setDest('new'); else { setDest('existing'); setTarget(e.target.value) } }}>
+                <select id="ie-dest" className="select" value={dest === 'new' ? '__new' : target} onChange={(e) => { setOver({}); setKeyPick(null); if (e.target.value === '__new') setDest('new'); else { setDest('existing'); setTarget(e.target.value) } }}>
                   {dest === 'existing' && !target && <option value="">Choose a table…</option>}
                   {tables.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
                   {table && !tables.some((t) => t.name === table.name) && <option value={table.name}>{table.name}</option>}
@@ -237,14 +253,23 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
                   </div>
                 </div>
               )}
-              {hasConflict && (
+              {dest === 'existing' && (
                 <div className="field">
-                  <label htmlFor="ie-conflict">On duplicate key</label>
+                  <label htmlFor="ie-conflict">Mode</label>
                   <select id="ie-conflict" className="select" value={conflict} onChange={(e) => setConflict(e.target.value as Conflict)}>
-                    <option value="stop">Stop with an error</option>
-                    <option value="update">Update the existing row</option>
-                    {dialect === 'mysql' && <option value="replace">Replace the existing row</option>}
+                    {MODES.filter(([m]) => m !== 'replace' || dialect !== 'postgres').map(([m, label]) => <option key={m} value={m}>{label}</option>)}
                   </select>
+                </div>
+              )}
+              {dest === 'existing' && wantKeys && (
+                <div className="field">
+                  <span className="muted" style={{ textAlign: 'right', fontSize: 'var(--fs-sm)' }}>Key columns</span>
+                  <div className="ie-tokens" role="group" aria-label="Key columns">
+                    {mapped.map((c) => (
+                      <label key={c} className="check"><input type="checkbox" checked={keys.includes(c)} onChange={(e) => setKeyPick(e.target.checked ? [...keys, c] : keys.filter((k) => k !== c))} /> {c}</label>
+                    ))}
+                    {!keys.length && <span className="danger-text" style={{ fontSize: 'var(--fs-sm)' }}>Choose the columns that identify a row.</span>}
+                  </div>
                 </div>
               )}
             </fieldset>

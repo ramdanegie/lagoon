@@ -7,7 +7,7 @@ import { pipeline } from 'stream/promises'
 import type { Column, DbObject, Dialect, JobProgress } from '@shared/types'
 import { selectSql, createTableSql, isNumericType, qt, type CellValue } from '@shared/sqlgen'
 import { splitStatements } from '@shared/split'
-import { parseDelimited, parseJsonRecords, jsonColumns, uniqueNames, csvRow, typedValue, importValue, exportValue, insertManySql, expandPattern, type Conflict, type CsvOut } from '@shared/importexport'
+import { parseDelimited, parseJsonRecords, jsonColumns, uniqueNames, csvRow, typedValue, importValue, exportValue, insertManySql, importBatchSql, expandPattern, type Conflict, type CsvOut } from '@shared/importexport'
 import { register } from './rpc'
 import { session, buildDriver } from './sessions'
 import { secretsOf } from './store'
@@ -57,7 +57,7 @@ export function checkPath(p: string): string {
 }
 
 /** A private connection cloned from the workspace session, so a job's transaction never mixes with the UI's queries. */
-async function jobDriver(sessionId: string): Promise<{ d: SqlDriver; close: () => Promise<void> }> {
+export async function jobDriver(sessionId: string): Promise<{ d: SqlDriver; close: () => Promise<void> }> {
   const s = session(sessionId)
   const db = 'dialect' in s.driver ? s.driver.currentDatabase() : undefined
   const { driver, tunnel } = await buildDriver({ ...s.conn, database: s.conn.driver === 'sqlite' ? s.conn.database : db ?? s.conn.database }, { ...secretsOf(s.conn.id), password: s.password })
@@ -81,6 +81,7 @@ interface ImportOpts {
   create?: { name: string; type: string }[] // new table: its columns
   map: (string | null)[] // per source column: destination column, or null to skip
   conflict: Conflict
+  keys?: string[] // key columns for update / delete / upsert modes; default: the primary key
 }
 
 const BATCH = 500
@@ -113,25 +114,31 @@ async function importRows(j: JobCtl, d: SqlDriver, o: ImportOpts): Promise<{ mes
     types = cols.map((c) => info.find((x) => x.name === c)?.type ?? '')
     pk = info.filter((x) => x.pk).map((x) => x.name)
   }
-  const sql = (batch: CellValue[][]): string => insertManySql(d.dialect, o.schema, o.table, cols, batch, types, d.dialect === 'sqlite' ? 'stop' : o.conflict, pk)
+  const mode: Conflict = o.create ? 'stop' : o.conflict
+  const keys = o.keys?.length ? o.keys : pk
+  const stmts = (batch: CellValue[][]): string[] => importBatchSql(d.dialect, o.schema, o.table, cols, batch, types, mode, keys)
+  void stmts([]) // validates the keys up front, before anything touches the table
   const createSql = o.create && createTableSql(d.dialect, o.schema, o.table, o.create.map((c) => ({ name: c.name, type: c.type, nullable: true, default: null })), [])
   // MySQL DDL commits implicitly, so the table is created before the transaction (and dropped again on failure)
   if (createSql && d.dialect === 'mysql') await d.query(createSql)
   await d.query(d.dialect === 'mysql' ? 'START TRANSACTION' : 'BEGIN')
+  let affected = 0
   try {
     if (createSql && d.dialect !== 'mysql') await d.query(createSql)
+    // DELETE rather than TRUNCATE: stays inside the transaction on every engine and works on tables other tables reference
+    if (mode === 'truncate') await d.query(`DELETE FROM ${qt(d.dialect, o.schema, o.table)}`)
     for (let i = 0; i < rows.length; i += BATCH) {
       if (j.cancelled) throw new Error('Cancelled')
       const batch = rows.slice(i, i + BATCH).map((r) => pairs.map(([si], k) => importValue(r[si], types[k])))
       await d.query('SAVEPOINT tc_batch')
       try {
-        await d.query(sql(batch))
+        for (const s of stmts(batch)) affected += (await d.query(s)).affected ?? 0
         await d.query('RELEASE SAVEPOINT tc_batch')
       } catch (e) {
         // find the exact row: retry the batch one row at a time
         await d.query('ROLLBACK TO SAVEPOINT tc_batch')
         for (let k = 0; k < batch.length; k++) {
-          try { await d.query(sql([batch[k]])) } catch (e2) { throw new Error(`Row ${i + k + 1}: ${(e2 as Error).message}`, { cause: e2 }) }
+          try { for (const s of stmts([batch[k]])) await d.query(s) } catch (e2) { throw new Error(`Row ${i + k + 1}: ${(e2 as Error).message}`, { cause: e2 }) }
         }
         throw e
       }
@@ -143,7 +150,12 @@ async function importRows(j: JobCtl, d: SqlDriver, o: ImportOpts): Promise<{ mes
     if (createSql && d.dialect === 'mysql') await d.query(`DROP TABLE ${qt(d.dialect, o.schema, o.table)}`).catch(() => {})
     throw e
   }
-  return { message: `Imported ${rows.length} row${rows.length === 1 ? '' : 's'} into ${o.table}` }
+  const n = rows.length
+  const s = (x: number): string => (x === 1 ? '' : 's')
+  if (mode === 'updateOnly') return { message: `Updated ${affected} of ${n} row${s(n)} in ${o.table}` }
+  if (mode === 'delete') return { message: `Deleted ${affected} row${s(affected)} from ${o.table}` }
+  if (mode === 'skip') return { message: `Imported ${affected} of ${n} row${s(n)} into ${o.table} (${n - affected} already there)` }
+  return { message: `Imported ${n} row${s(n)} into ${o.table}` }
 }
 
 async function importSqlFile(j: JobCtl, d: SqlDriver, o: ImportOpts): Promise<{ message: string }> {

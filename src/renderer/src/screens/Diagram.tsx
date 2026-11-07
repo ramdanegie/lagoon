@@ -257,8 +257,10 @@ export function Diagram({ tab }: { tab: Tab }): ReactNode {
     clone.querySelectorAll('.dg-dot, .dg-hit, .dg-draft').forEach((n) => n.remove())
     clone.querySelector('.dg-viewport')!.setAttribute('transform', `translate(${pad - b.x},${pad - b.y})`)
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-    clone.setAttribute('width', String(w))
-    clone.setAttribute('height', String(h))
+    // PNG: 2x intrinsic size for sharp text; very large schemas scale down to stay under the browser's canvas limit
+    const scale = /\.svg$/i.test(path) ? 1 : Math.min(2, Math.sqrt(120e6 / (w * h)))
+    clone.setAttribute('width', String(Math.round(w * scale)))
+    clone.setAttribute('height', String(Math.round(h * scale)))
     clone.setAttribute('viewBox', `0 0 ${w} ${h}`)
     clone.removeAttribute('class')
     clone.querySelector('.dg-bg')!.setAttribute('width', String(w))
@@ -272,21 +274,11 @@ export function Diagram({ tab }: { tab: Tab }): ReactNode {
         const img = new Image()
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(text)
         await img.decode()
-        const scale = Math.min(2, Math.sqrt(120e6 / (w * h)))
         const canvas = document.createElement('canvas')
         canvas.width = Math.round(w * scale)
         canvas.height = Math.round(h * scale)
-        const ctx = canvas.getContext('2d')!
-        ctx.scale(scale, scale)
-        ctx.drawImage(img, 0, 0)
-        try {
-          await call('file.writeBase64', path, canvas.toDataURL('image/png').split(',')[1])
-        } catch (e) {
-          // shortcut: PNG needs the main-process 'file.writeBase64' RPC; until it exists the SVG is saved instead
-          if (!/Unknown method/.test(errText(e))) throw e
-          await call('file.write', path.replace(/\.png$/i, '') + '.svg', text)
-          return toast('Saved as SVG: PNG export is not available in this build yet.')
-        }
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        await call('file.writeBase64', path, canvas.toDataURL('image/png').split(',')[1])
       }
       toast('Diagram exported', 'success')
     } catch (e) { fail(e) }

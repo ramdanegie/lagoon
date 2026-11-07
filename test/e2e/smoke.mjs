@@ -92,6 +92,10 @@ try {
   await ws.getByRole('gridcell', { name: 'created_at' }).waitFor()
   await ws.screenshot({ path: join(shots, 'S11-structure.png') })
   step('structure view')
+  await ws.getByRole('tab', { name: 'Indexes' }).click()
+  await ws.getByRole('gridcell', { name: 'customers_email_key' }).waitFor()
+  await ws.getByRole('gridcell', { name: 'email', exact: true }).waitFor()
+  step('index view lists index columns')
 
   // table without key is read-only
   await ws.getByRole('treeitem', { name: 'nokey' }).click()

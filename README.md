@@ -35,12 +35,15 @@ Everything is free and open source. No account, no telemetry, no feature limits:
 ## Highlights
 
 - 🔌 **Connections that just work.** PostgreSQL, MySQL, MariaDB, SQLite, Redis and MongoDB. SSH tunnels with keys, `~/.ssh/config` and the SSH agent (host keys are pinned on first use), SSL/TLS with client certificates. Passwords live in the OS keychain, or are asked every time, or come from a shell command for short-lived tokens. Status colors, tags, nested groups, import from a URL, and encrypted export to share with your team.
-- 📋 **A grid that stays smooth.** Virtualized rendering scrolls 10,000 rows at 120 fps. Double-click to edit, `⌘I` to add a row, `⌘D` to duplicate, `⌫` to delete. Changes are colored (new, modified, deleted) until you press `⌘S`. Undo and redo, a row detail sidebar that edits many rows at once, Quick Look for long text, JSON and images, follow a foreign key with one click, copy as CSV, JSON, Markdown, HTML or `INSERT` statements.
+- 📋 **A grid that stays smooth.** Virtualized rendering scrolls 10,000 rows at 120 fps. Double-click to edit, `⌘I` to add a row, `⌘D` to duplicate, `⌫` to delete. Changes are colored (new, modified, deleted) until you press `⌘S`. Pick foreign-key values from the parent table, find and replace across the page, save filter and column layouts as profiles. Undo and redo, a row detail sidebar that edits many rows at once, Quick Look for long text, JSON and images, follow a foreign key with one click, copy as CSV, JSON, Markdown, HTML or `INSERT` statements.
 - 🔍 **Filters without limits.** Any column, every operator (`IN`, `BETWEEN`, `LIKE`, contains, prefix, `ILIKE` on Postgres…), "any column" search, raw SQL conditions, AND or OR, quick filters from a cell. Filters, sort, hidden columns and column widths are remembered per table.
 - 🧱 **Structure editor.** Columns, types, defaults, primary keys, foreign keys with `ON UPDATE`/`ON DELETE`, indexes, triggers and the full DDL. Create tables, views, materialized views, functions and procedures. Everything is previewed as SQL before it runs.
-- ⌨️ **A SQL editor you will like.** Run the statement under the cursor (`⌘↩`) or everything (`⇧⌘↩`), one result tab per statement, alias-aware autocomplete, multiple carets, Vim mode, beautify and uglify, query parameters in six styles, row limits, charts from any result, saved queries as plain `.sql` files with keyword shortcuts, and searchable history per connection.
+- ⌨️ **A SQL editor you will like.** Run the statement under the cursor (`⌘↩`) or everything (`⇧⌘↩`), one result tab per statement, alias-aware autocomplete, JOIN suggestions from foreign keys, hover a table to see its columns, snippets with tab stops, multiple carets, Vim mode, beautify and uglify, query parameters in six styles, row limits, charts from any result, saved queries as plain `.sql` files with keyword shortcuts, and searchable history per connection.
 - 🛡️ **Safe mode.** Five levels per connection, from silent to "password before every write". It covers the editor, grid commits, killing queries, backups and dashboards.
 - 🧭 **Open Anything.** `⌘P` jumps to any table, view, function, database, saved query or feature. Plus search for a value across every table in the database.
+- 🔄 **Sync and transfer.** Copy tables between connections, even across engines (PostgreSQL ⇄ MySQL ⇄ SQLite) or into a SQL file. Data sync compares rows by key, shows every difference cell by cell, and deploys only the rows you tick. Structure sync compares two schemas and writes the migration script for you, in dependency order.
+- 🔬 **Visual Explain.** See the query plan as a tree, with the expensive steps highlighted and stats per step and per table. Explain Analyze runs writes inside a rolled-back transaction.
+- 🧪 **Test data and docs.** Fill tables with realistic fake data that respects foreign keys (parents first), uniqueness and enums, with a preview and a seed. Export a data dictionary of your schema as HTML or Markdown.
 - 🗺️ **ER diagram.** Tables, columns and foreign keys, grouped by color. Drag between columns to create a foreign key, then commit it like any other change.
 - 📦 **Import, export, backup.** CSV, JSON and SQL import with column mapping and conflict handling. Export to CSV, JSON, SQL (gzip) and Excel. Backup and restore with `pg_dump`/`pg_restore` and `mysqldump`/`mysql`, with a live log.
 - 📊 **Dashboards.** Metrics boards with tables, scoreboards, bar, line and pie charts, inputs, dropdowns and buttons wired together with `$variables`, auto refresh from 1 second to 30 minutes.
@@ -63,7 +66,7 @@ Lagoon is built on Electron, but tuned to stay small. Measured on an Apple Silic
 
 | | Idle | One 10,000-row table open | Scrolling |
 |---|---|---|---|
-| **Lagoon** | **111 MB** | 187 MB | 120 fps |
+| **Lagoon** | **113 MB** | 187 MB | 110–120 fps |
 | Navicat Premium Lite 17.3.11 | 129 MB | – | – |
 
 How: database drivers, SSH, Excel export, the SQL editor and charts load only when you first use them; the Welcome window never parses the editor; the grid renders only the rows on screen; rasterizing on the CPU keeps the GPU process small without dropping frames. A native Swift app like TablePlus still uses less (about 60 MB idle); Lagoon trades a little memory for running on macOS, Windows and Linux from one codebase.

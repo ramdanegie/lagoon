@@ -87,7 +87,7 @@ results.scroll = await ws.evaluate(async () => {
   frames.shift()
   frames.sort((a, b) => a - b)
   const avg = frames.reduce((a, b) => a + b, 0) / frames.length
-  return { frames: frames.length, avgMs: +avg.toFixed(1), p95Ms: +frames[Math.floor(frames.length * 0.95)].toFixed(1), fps: Math.round(1000 / avg) }
+  return { frames: frames.length, avgMs: +avg.toFixed(1), p95Ms: +frames[Math.floor(frames.length * 0.95)].toFixed(1), maxMs: +frames[frames.length - 1].toFixed(1), over33ms: frames.filter((f) => f > 33).length, fps: Math.round(1000 / avg) }
 })
 await ea.close()
 

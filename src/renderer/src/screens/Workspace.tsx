@@ -67,7 +67,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
   useEffect(() => {
     void connect()
     const offLog = on('console:log', (e: { at: string; sql: string }) => useWs.setState((st) => ({ console: [...st.console.slice(-999), e] })))
-    const offLost = on('session:lost', () => setWs({ lost: true }))
+    const offLost = on('session:lost', (id: string) => { if (id === ws().sessionId) setWs({ lost: true }) })
     return () => { offLog(); offLost() }
   }, [])
 

@@ -25,8 +25,8 @@ export class MysqlDriver implements SqlDriver {
     return {
       host: this.p.host, port: this.p.port, user: this.p.user, password: this.p.password, database: this.db,
       ssl: sslOption(this.p), dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, connectTimeout: 15000,
-      // BIT(1) → 0/1 text instead of a Buffer
-      typeCast: (field, next) => (field.type === 'BIT' && field.length === 1 ? (field.buffer()?.[0] ?? null) : next())
+      // BIT(1) → 0/1 instead of a Buffer; DOUBLE/FLOAT as the server's text so values aren't altered on the way
+      typeCast: (field, next) => (field.type === 'BIT' && field.length === 1 ? (field.buffer()?.[0] ?? null) : field.type === 'DOUBLE' || field.type === 'FLOAT' ? field.string() : next())
     }
   }
 

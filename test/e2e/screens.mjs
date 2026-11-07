@@ -40,6 +40,11 @@ try {
   await send('file.backup'); await ws.getByRole('dialog').first().waitFor(); await ws.waitForTimeout(800); await shot('S28-backup.png'); await esc(); step('Backup')
   await send('tools.plugins'); await ws.getByRole('dialog').first().waitFor(); await ws.waitForTimeout(500); await shot('S33-plugins.png'); await esc(); step('Plugin manager')
   await send('tools.search'); await ws.waitForTimeout(500); await shot('S24-search.png'); step('Search in database panel')
+  for (const [cmd, name, file] of [['tools.transfer', 'Data transfer', 'S42-transfer.png'], ['tools.dataSync', 'Data synchronization', 'S43-datasync.png'], ['tools.structSync', 'Structure synchronization', 'S44-structsync.png'], ['tools.generate', 'Test data generator', 'S45-generate.png'], ['tools.dictionary', 'Data dictionary', 'S46-dictionary.png']]) {
+    await send(cmd); await ws.getByRole('dialog').first().waitFor(); await ws.waitForTimeout(1200); await shot(file); await esc(); await ws.waitForTimeout(200)
+    if (await ws.getByRole('dialog').count()) await esc()
+    step(name)
+  }
   await send('nav.openAnything'); await ws.getByPlaceholder(/Open anything/).waitFor(); await esc(); await esc(); step('Open anything')
   await send('conn.openDatabase'); await ws.getByText('shop', { exact: true }).first().waitFor(); await shot('S22-databases.png'); await esc(); step('Database picker')
 

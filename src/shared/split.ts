@@ -3,11 +3,15 @@ import type { Dialect } from './types'
 
 export interface Stmt { sql: string; from: number; to: number }
 
-/** Split on `;` outside strings, quoted identifiers, comments and PG dollar-quoted bodies. */
+/**
+ * Split on `;` outside strings, quoted identifiers, comments and PG dollar-quoted bodies.
+ * MySQL scripts may switch the terminator with a `DELIMITER $$` line (client syntax, never sent to the server).
+ */
 export function splitStatements(text: string, dialect: Dialect = 'postgres'): Stmt[] {
   const out: Stmt[] = []
   let start = 0
   let i = 0
+  let delim = ';'
   const n = text.length
   const push = (end: number): void => {
     const raw = text.slice(start, end)
@@ -19,6 +23,11 @@ export function splitStatements(text: string, dialect: Dialect = 'postgres'): St
   while (i < n) {
     const c = text[i]
     const c2 = text[i + 1]
+    if (dialect === 'mysql' && (i === 0 || text[i - 1] === '\n')) {
+      const e = lineEnd(text, i)
+      const m = /^\s*delimiter\s+(\S+)\s*$/i.exec(text.slice(i, e))
+      if (m) { push(i); delim = m[1]; start = e + 1; i = e + 1; continue }
+    }
     if (c === '-' && c2 === '-') { i = lineEnd(text, i); continue }
     if (c === '#' && dialect === 'mysql') { i = lineEnd(text, i); continue }
     if (c === '/' && c2 === '*') { const e = text.indexOf('*/', i + 2); i = e < 0 ? n : e + 2; continue }
@@ -27,7 +36,7 @@ export function splitStatements(text: string, dialect: Dialect = 'postgres'): St
       const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(text.slice(i))
       if (m) { const e = text.indexOf(m[0], i + m[0].length); i = e < 0 ? n : e + m[0].length; continue }
     }
-    if (c === ';') { push(i); start = i + 1 }
+    if (delim === ';' ? c === ';' : text.startsWith(delim, i)) { push(i); start = i + delim.length; i += delim.length; continue }
     i++
   }
   push(n)

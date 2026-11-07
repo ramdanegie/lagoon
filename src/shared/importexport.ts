@@ -1,9 +1,14 @@
 // Pure import/export/backup helpers shared by main (jobs) and the renderer (wizards). Tested in test/importexport.test.ts.
 import type { Dialect } from './types'
-import { qi, qt, lit, type CellValue } from './sqlgen'
+import { qi, qt, lit, keyWhere, updateSql, type CellValue } from './sqlgen'
 
 export type Matching = 'nameOrder' | 'name' | 'order'
-export type Conflict = 'stop' | 'update' | 'replace'
+/** Import mode. stop = append (fail on a duplicate key), update = upsert, replace = delete + re-insert (MySQL/SQLite),
+ *  skip = insert only new keys, updateOnly = update matching rows, delete = delete matching rows, truncate = empty the table first. */
+export type Conflict = 'stop' | 'update' | 'replace' | 'skip' | 'updateOnly' | 'delete' | 'truncate'
+
+/** Modes that match rows by key columns (MySQL upsert / skip use the table's own unique keys instead). */
+export const needsKeys = (mode: Conflict, d: Dialect): boolean => mode === 'updateOnly' || mode === 'delete' || (mode === 'update' && d !== 'mysql')
 
 /** Parse delimited text (CSV/TSV). `quote` '' turns quoting off. Blank lines are dropped. */
 export function parseDelimited(text: string, delim = ',', quote = '"'): string[][] {
@@ -189,18 +194,39 @@ export function exportValue(d: Dialect, v: unknown, type: string): CellValue {
   return v as CellValue
 }
 
-/** Multi-row INSERT with an optional key-conflict clause. */
+/** Multi-row INSERT with an optional key-conflict clause. `pk` = key columns for Postgres/SQLite upserts. */
 export function insertManySql(d: Dialect, schema: string, table: string, cols: string[], rows: CellValue[][], types: string[] = [], conflict: Conflict = 'stop', pk: string[] = []): string {
-  const verb = d === 'mysql' && conflict === 'replace' ? 'REPLACE' : 'INSERT'
+  const verb = conflict === 'replace' ? (d === 'mysql' ? 'REPLACE' : d === 'sqlite' ? 'INSERT OR REPLACE' : 'INSERT')
+    : conflict === 'skip' ? (d === 'mysql' ? 'INSERT IGNORE' : d === 'sqlite' ? 'INSERT OR IGNORE' : 'INSERT') : 'INSERT'
   const body = rows.map((r) => `(${r.map((v, i) => lit(d, v, types[i])).join(', ')})`).join(',\n')
   let tail = ''
-  if (conflict === 'update' && d === 'postgres') {
-    if (!pk.length) throw new Error('Updating existing rows needs a primary key on the destination table.')
+  if (conflict === 'update' && d !== 'mysql') {
+    if (!pk.length) throw new Error('Updating existing rows needs key columns: choose them, or give the destination table a primary key.')
     const upd = cols.filter((c) => !pk.includes(c))
     tail = ` ON CONFLICT (${pk.map((c) => qi(d, c)).join(', ')}) DO ${upd.length ? `UPDATE SET ${upd.map((c) => `${qi(d, c)} = EXCLUDED.${qi(d, c)}`).join(', ')}` : 'NOTHING'}`
   } else if (conflict === 'update' && d === 'mysql') {
     tail = ` ON DUPLICATE KEY UPDATE ${cols.map((c) => `${qi(d, c)} = VALUES(${qi(d, c)})`).join(', ')}`
-  }
+  } else if (conflict === 'skip' && d === 'postgres') tail = ' ON CONFLICT DO NOTHING'
   return `${verb} INTO ${qt(d, schema, table)} (${cols.map((c) => qi(d, c)).join(', ')}) VALUES\n${body}${tail}`
 }
 
+/** Statements that apply one batch of file rows in the given mode. Update and delete match rows by `keys`. */
+export function importBatchSql(d: Dialect, schema: string, table: string, cols: string[], rows: CellValue[][], types: string[], mode: Conflict, keys: string[]): string[] {
+  if (mode !== 'updateOnly' && mode !== 'delete') return [insertManySql(d, schema, table, cols, rows, types, mode === 'truncate' ? 'stop' : mode, keys)]
+  if (!keys.length) throw new Error('This mode needs key columns: choose them, or give the destination table a primary key.')
+  const missing = keys.filter((k) => !cols.includes(k))
+  if (missing.length) throw new Error(`Key column ${missing.join(', ')} is not imported from the file.`)
+  const typeOf = Object.fromEntries(cols.map((c, i) => [c, types[i] ?? '']))
+  const keyOf = (r: CellValue[]): Record<string, CellValue> => Object.fromEntries(keys.map((k) => [k, r[cols.indexOf(k)]]))
+  if (mode === 'delete') {
+    const k0 = cols.indexOf(keys[0])
+    const where = keys.length === 1
+      ? `${qi(d, keys[0])} IN (${rows.map((r) => lit(d, r[k0], types[k0])).join(', ')})`
+      : rows.map((r) => `(${keyWhere(d, keyOf(r), typeOf)})`).join(' OR ')
+    return [`DELETE FROM ${qt(d, schema, table)} WHERE ${where}`]
+  }
+  const set = cols.filter((c) => !keys.includes(c))
+  if (!set.length) throw new Error('Nothing to update: every imported column is a key column.')
+  // shortcut: one UPDATE per row; fine for thousands of rows, a join against a VALUES list would be faster for millions
+  return rows.map((r) => updateSql(d, schema, table, keyOf(r), Object.fromEntries(set.map((c) => [c, r[cols.indexOf(c)]])), typeOf).replace(/;$/, ''))
+}

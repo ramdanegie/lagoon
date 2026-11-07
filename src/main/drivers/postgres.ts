@@ -120,7 +120,7 @@ export class PostgresDriver implements SqlDriver {
     const r = await this.rows<Record<string, unknown>>(
       `SELECT ic.relname AS name, i.indisunique AS unique, i.indisprimary AS primary, am.amname AS type,
               pg_get_expr(i.indpred, i.indrelid) AS condition,
-              ARRAY(SELECT pg_get_indexdef(i.indexrelid, k, true) FROM generate_subscripts(i.indkey, 1) k ORDER BY k) AS columns
+              ARRAY(SELECT pg_get_indexdef(i.indexrelid, k + 1, true) FROM generate_subscripts(i.indkey, 1) k ORDER BY k) AS columns
        FROM pg_index i JOIN pg_class ic ON ic.oid = i.indexrelid JOIN pg_class c ON c.oid = i.indrelid
        JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_am am ON am.oid = ic.relam
        WHERE n.nspname = $1 AND c.relname = $2 ORDER BY i.indisprimary DESC, 1`, [schema, table])

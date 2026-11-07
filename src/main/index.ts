@@ -13,6 +13,10 @@ import './plugins'
 import './backup'
 import './users'
 import './search'
+import './transfer'
+import './datasync'
+import './structsync'
+import './generate'
 
 const isMac = process.platform === 'darwin'
 // isolated profile for automated tests

@@ -144,7 +144,8 @@ export function Sidebar(): ReactNode {
       ...(sql ? [
         { sep: true },
         { label: 'Export…', onClick: () => openTool({ kind: 'export', items: many }) },
-        ...(isTable ? [{ label: 'Import', submenu: (['csv', 'json', 'sql'] as const).map((f) => ({ label: `From ${f.toUpperCase()}…`, onClick: () => openTool({ kind: 'import', format: f, table: o }) })) }] : [])
+        ...(isTable ? [{ label: 'Import', submenu: (['csv', 'json', 'sql'] as const).map((f) => ({ label: `From ${f.toUpperCase()}…`, onClick: () => openTool({ kind: 'import', format: f, table: o }) })) }] : []),
+        ...(isTable ? [{ label: 'Transfer to Another Connection…', onClick: () => openTool({ kind: 'transfer', items: many.filter((x) => x.kind === 'table') }) }, { label: 'Generate Test Data…', onClick: () => openTool({ kind: 'generate', table: o }) }] : [])
       ] : []),
       { sep: true },
       ...(sql && isTable ? [{ label: 'Clone…', onClick: async () => {

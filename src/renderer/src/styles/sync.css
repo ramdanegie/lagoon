@@ -1,0 +1,45 @@
+/* Data Transfer and Data Synchronization windows. Tokens only. */
+.sy-sides { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--sp-4); align-items: start; }
+.sy-swap, .sy-arrow { align-self: center; }
+.sy-arrow { color: var(--fg-faint); font-size: var(--fs-lg); }
+.sy-note { border-left: 3px solid var(--warning); background: var(--bg-elev); padding: var(--sp-3) var(--sp-5); border-radius: var(--r-sm); font-size: var(--fs-sm); }
+
+.sy-scroll { max-height: 38vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
+.sy-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.sy-table th, .sy-table td { text-align: left; padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--grid-line); white-space: nowrap; vertical-align: middle; }
+.sy-table th { position: sticky; top: 0; z-index: 1; background: var(--bg-elev); color: var(--fg-muted); font-weight: 500; }
+.sy-table tr.off > td { color: var(--fg-faint); }
+.sy-table .input.sm { min-width: 140px; }
+.sy-detail > td { background: var(--bg-row-alt); white-space: normal; }
+.sy-why { font-size: var(--fs-xs); margin-top: var(--sp-1); white-space: normal; }
+.sy-hint { font-size: var(--fs-xs); margin-top: var(--sp-2); }
+.sy-mini { border-collapse: collapse; font-size: var(--fs-sm); }
+.sy-mini th, .sy-mini td { padding: var(--sp-1) var(--sp-4) var(--sp-1) 0; text-align: left; }
+.sy-mini th { color: var(--fg-muted); font-weight: 500; }
+.sy-colgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--sp-2) var(--sp-5); margin-top: var(--sp-3); }
+.sy-colgrid .check { min-width: 0; }
+.sy-opts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-6); }
+.sy-target { text-align: right; }
+.sy-log { max-height: 160px; margin: 0; }
+
+/* results */
+.sy-results { display: grid; grid-template-columns: 280px 1fr; gap: var(--sp-5); min-height: 360px; }
+.sy-tables { overflow: auto; max-height: 56vh; border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-2); }
+.sy-tab { cursor: default; }
+.sy-counts { margin-left: auto; display: inline-flex; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-xs); }
+.sy-n.insert, .sy-kind.insert { color: var(--success); }
+.sy-n.update, .sy-kind.update { color: var(--warning); }
+.sy-n.delete, .sy-kind.delete { color: var(--danger); }
+.sy-n.same, .sy-kind.same { color: var(--fg-faint); }
+.sy-diff-wrap { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; min-height: 0; }
+.sy-diff { max-height: 50vh; }
+.sy-diff td { font-family: var(--font-mono); max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.sy-kind { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.sy-key { color: var(--fg); }
+.sy-row.insert > td { background: var(--pending-new); }
+.sy-row.delete > td { background: var(--pending-del); }
+.sy-row.update > td.sy-changed { background: var(--pending-mod); }
+.sy-row.excluded > td { opacity: 0.45; }
+.sy-new, .sy-old { display: block; overflow: hidden; text-overflow: ellipsis; }
+.sy-old { color: var(--fg-muted); text-decoration: line-through; }
+.sy-null { color: var(--null-fg); font-style: italic; }

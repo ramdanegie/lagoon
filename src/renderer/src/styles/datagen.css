@@ -1,0 +1,26 @@
+/* Test data generator and data dictionary dialogs. Tokens only. */
+.gen { display: grid; grid-template-columns: 230px 1fr; gap: var(--sp-5); min-height: 520px; }
+.gen-side { gap: var(--sp-3); min-height: 0; }
+.gen-tables { flex: 1; min-height: 200px; max-height: 64vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-2); }
+.gen-table { gap: var(--sp-2); }
+.gen-table input[type='checkbox'] { margin: 0; accent-color: var(--accent); }
+.gen-name { flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; color: inherit; font: inherit; }
+.gen-rows { width: 64px; }
+.gen-order { font-size: var(--fs-xs); line-height: 1.4; }
+.gen-main { gap: var(--sp-3); min-width: 0; }
+.gen-scroll { max-height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
+.gen-cols td { vertical-align: middle; }
+.gen-cols td:first-child { max-width: 180px; }
+.gen-cols .select { max-width: 210px; }
+.gen-type { font-size: var(--fs-xs); }
+.gen-skip td:first-child { opacity: 0.6; }
+.gen-opts { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.gen-opts .input { width: 110px; }
+.gen-opts .input.grow { width: auto; min-width: 160px; }
+.gen-pct { width: 56px; }
+.gen-seed { width: 110px; }
+.gen-preview { height: 220px; display: flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+
+.dict-bar { display: flex; align-items: center; gap: var(--sp-4); }
+.dict-frame { width: 100%; height: 60vh; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-input); }
+.dict-md { height: 60vh; margin: 0; }

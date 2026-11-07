@@ -10,6 +10,10 @@ test('split respects strings, comments, dollar quotes', () => {
   assert.match(s[2].sql, /\$\$ language plpgsql$/)
   assert.equal(splitStatements('select 1;;  ;\n-- only comment', 'postgres').length, 1)
   assert.equal(splitStatements("select 'a\\';b'; select 2", 'mysql').length, 2)
+  const script = 'select 1;\nDELIMITER $$\nCREATE PROCEDURE p() BEGIN SELECT 1; SELECT 2; END$$\nCREATE TRIGGER t BEFORE INSERT ON x FOR EACH ROW BEGIN SET NEW.a = 1; END $$\nDELIMITER ;\nselect 3;'
+  const parts = splitStatements(script, 'mysql').map((x) => x.sql)
+  assert.deepEqual(parts, ['select 1', 'CREATE PROCEDURE p() BEGIN SELECT 1; SELECT 2; END', 'CREATE TRIGGER t BEFORE INSERT ON x FOR EACH ROW BEGIN SET NEW.a = 1; END', 'select 3'])
+  assert.equal(splitStatements('DELIMITER $$\nselect 1;', 'postgres').length, 1)
 })
 
 test('statementAt finds caret statement', () => {
@@ -35,6 +39,9 @@ test('literals escape per dialect', () => {
   assert.equal(lit('mysql', 'a\\b'), "'a\\\\b'")
   assert.equal(lit('postgres', '42', 'integer'), '42')
   assert.equal(lit('postgres', '42 or 1=1', 'integer'), "'42 or 1=1'")
+  assert.equal(lit('postgres', '1 day', 'interval'), "'1 day'")
+  assert.equal(lit('postgres', '5', 'interval'), "'5'")
+  assert.equal(lit('mysql', '7', 'bigint unsigned'), '7')
   assert.equal(lit('mysql', null), 'NULL')
   assert.equal(lit('postgres', { raw: 'DEFAULT' }), 'DEFAULT')
 })
