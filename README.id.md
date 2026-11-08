@@ -75,10 +75,9 @@ Caranya: driver database, SSH, ekspor Excel, editor SQL, dan chart baru dimuat s
 
 ## Instalasi
 
-1. Unduh rilis terbaru untuk platformmu dari [Releases](https://github.com/ramdanegie/lagoon/releases): `.dmg` untuk macOS, `.exe` untuk Windows, `.AppImage` untuk Linux.
-2. macOS: buka DMG lalu seret **Lagoon** ke **Applications**. Build uji belum dinotarisasi, jadi macOS belum bisa memverifikasinya: buka **System Settings → Privacy & Security** lalu klik **Open Anyway** (atau jalankan `xattr -dr com.apple.quarantine /Applications/Lagoon.app`).
-
-Belum ada rilis? Build sendiri dalam dua menit (lihat di bawah).
+1. Unduh rilis terbaru untuk platformmu dari [Releases](https://github.com/ramdanegie/lagoon/releases): `.dmg` untuk macOS (`arm64` untuk Apple Silicon, `x64` untuk Intel), `-setup.exe` untuk Windows, `.AppImage` atau `.deb` untuk Linux.
+2. macOS: buka DMG lalu seret **Lagoon** ke **Applications**. Build rilis belum dinotarisasi, jadi macOS belum bisa memverifikasinya: buka **System Settings → Privacy & Security** lalu klik **Open Anyway** (atau jalankan `xattr -dr com.apple.quarantine /Applications/Lagoon.app`).
+3. Windows: jika SmartScreen menampilkan "Windows protected your PC", klik **More info → Run anyway**.
 
 **Kebutuhan:** macOS 12 atau lebih baru (Apple Silicon atau Intel), Windows 10 atau lebih baru, atau desktop Linux terbaru.
 

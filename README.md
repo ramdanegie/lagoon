@@ -75,10 +75,9 @@ How: database drivers, SSH, Excel export, the SQL editor and charts load only wh
 
 ## Install
 
-1. Download the latest release for your platform from [Releases](https://github.com/ramdanegie/lagoon/releases): `.dmg` for macOS, `.exe` for Windows, `.AppImage` for Linux.
-2. macOS: open the DMG and drag **Lagoon** to **Applications**. Test builds are not notarized yet, so macOS cannot verify them: open **System Settings → Privacy & Security** and click **Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/Lagoon.app`).
-
-No release yet? Build it yourself in two minutes (below).
+1. Download the latest release for your platform from [Releases](https://github.com/ramdanegie/lagoon/releases): `.dmg` for macOS (`arm64` for Apple Silicon, `x64` for Intel), `-setup.exe` for Windows, `.AppImage` or `.deb` for Linux.
+2. macOS: open the DMG and drag **Lagoon** to **Applications**. Release builds are not notarized yet, so macOS cannot verify them: open **System Settings → Privacy & Security** and click **Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/Lagoon.app`).
+3. Windows: if SmartScreen says "Windows protected your PC", click **More info → Run anyway**.
 
 **Requirements:** macOS 12 or later (Apple Silicon or Intel), Windows 10 or later, or a recent Linux desktop.
 

@@ -1,0 +1,63 @@
+# Push a tag like v1.0.0 to build Lagoon for macOS (Apple Silicon + Intel), Windows and Linux and publish a GitHub release.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            # no Developer ID certificate: ad-hoc signed, users confirm with "Open Anyway" on first launch
+            args: --mac dmg --arm64 --x64 -c.mac.identity=-
+          - os: windows-latest
+            args: --win nsis --x64
+          - os: ubuntu-latest
+            args: --linux AppImage deb --x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        if: runner.os == 'Linux' # platform-independent logic; one OS is enough
+      - run: npx electron-vite build
+      - run: npx electron-builder ${{ matrix.args }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Lagoon ${TAG#v}" --notes-file .github/release-notes.md --generate-notes
+          gh release upload "$TAG" files/* --clobber

@@ -9,6 +9,8 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{test,docs,scripts,plugins-examples,.github}/**'
+  - '!README*.md'
 fileAssociations:
   - ext: sql
     name: SQL File
@@ -19,9 +21,9 @@ fileAssociations:
 asarUnpack:
   - resources/**
 win:
-  executableName: app
+  executableName: Lagoon
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
@@ -34,20 +36,16 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}-${arch}.${ext}
 linux:
   target:
     - AppImage
-    - snap
     - deb
-  maintainer: electronjs.org
-  category: Utility
+  maintainer: Egie Ramdan <ramdanegie@users.noreply.github.com>
+  category: Development
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}-${arch}.${ext}
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates
 extraResources:
   - from: plugins-examples
     to: plugins-examples
