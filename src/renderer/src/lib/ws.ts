@@ -24,7 +24,8 @@ export interface Tab {
   view?: 'data' | 'structure' | 'index'
   initialFilter?: { column: string; op: string; value: string }
   content?: string // query text
-  filePath?: string
+  filePath?: string // a saved query (queries folder)
+  diskPath?: string // any other .sql file opened from disk
   pane?: 0 | 1
   isNew?: boolean
 }

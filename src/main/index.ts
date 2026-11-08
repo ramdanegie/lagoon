@@ -91,18 +91,26 @@ app.whenReady().then(() => {
     'window.open': (_c, params: Record<string, string>) => void openWindow(params),
     'window.close': (c) => c.win?.close(),
     'window.setTitle': (c, t: string) => c.win?.setTitle(t),
-    'menu.rebuild': () => buildMenu()
+    'menu.rebuild': () => buildMenu(),
+    'app.takeFiles': () => incoming.splice(0)
   })
   buildMenu()
   // a .sqlite file passed on the command line opens straight into a workspace
   const file = process.argv.slice(1).find((a) => /\.(sqlite3?|db)$/i.test(a))
+  incoming.push(...process.argv.slice(1).filter((a) => /\.sql$/i.test(a)))
   openWindow(file ? { view: 'main', file } : { view: 'main' })
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && openWindow())
 })
 
+// Files handed to the app (Finder, Open With, command line) wait here until a window takes them; on a cold start
+// macOS sends open-file before the app is ready, so nothing can be opened right away.
+const incoming: string[] = []
 app.on('open-file', (e, path) => {
   e.preventDefault()
-  if (app.isReady()) openWindow({ view: 'workspace', file: path })
+  incoming.push(path)
+  if (!app.isReady()) return
+  const w = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  if (w) { w.show(); w.webContents.send('files:incoming') } else openWindow()
 })
 
 app.on('window-all-closed', () => {

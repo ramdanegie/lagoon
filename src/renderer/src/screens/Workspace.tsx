@@ -2,7 +2,7 @@ import { type ReactNode, lazy, Suspense, useEffect, useRef, useState } from 'rea
 import type { Connection, ServerInfo, Tag } from '@shared/types'
 import { DRIVERS, SAFE_MODES } from '@shared/types'
 import { call, fail, focusScope, isMac, on, setting, tip, toast, useCommands } from '../lib/api'
-import { useWs, setWs, ws, loadObjects, closeTab, newQueryTab, openTab, updateTab, ScopeContext, useScopes, openScope, scopeOfSession, setScope, closeConnection, updateConnInScopes, type Tab } from '../lib/ws'
+import { useWs, setWs, ws, scopes, useFocus, loadObjects, closeTab, newQueryTab, openTab, updateTab, ScopeContext, useScopes, openScope, scopeOfSession, setScope, closeConnection, updateConnInScopes, type Tab } from '../lib/ws'
 import { newConnection } from './Navigator'
 import { startTour } from '../components/Tour'
 import { Icon } from '../components/Icon'
@@ -51,8 +51,14 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
     if (connectionId || file) {
       void resolveConnection(connectionId, file).then((c) => { window.dispatchEvent(new CustomEvent('connections:changed')); return openScope(c, { ask: (t) => promptDialog(t, '', { password: true, ok: 'Connect' }) }) }).catch(fail)
     }
-    return () => { offLog(); offLost() }
+    // files from Finder / Open With / the command line, including ones that arrived before this window loaded
+    const take = (): void => void call<string[]>('app.takeFiles').then(openFiles)
+    take()
+    const offFiles = on('files:incoming', take)
+    return () => { offLog(); offLost(); offFiles() }
   }, [])
+  const focus = useFocus()
+  useEffect(() => { void openWaitingSql() }, [focus])
 
   useEffect(() => { consoleRef.current?.scrollTo(0, consoleRef.current.scrollHeight) }, [s.console.length, s.showConsole])
 
@@ -91,6 +97,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
     'conn.openConnection': () => setOverlay('conn'),
     'conn.edit': () => setOverlay('edit'),
     'conn.new': () => newConnection(),
+    'file.open': () => void pickFiles(),
     'file.backup': () => setOverlay('backup'),
     'file.restore': () => setOverlay('restore'),
     'nav.newQuery': () => void newQueryTab(),
@@ -329,12 +336,46 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
   )
 }
 
-async function openSqliteFile(): Promise<void> {
-  const [f] = await call<string[]>('dialog.open', { properties: ['openFile'], filters: [{ name: 'SQLite', extensions: ['sqlite', 'sqlite3', 'db', 'db3'] }, { name: 'All files', extensions: ['*'] }] })
-  if (!f) return
+async function openSqlite(f: string): Promise<void> {
   try {
     const c = await resolveConnection(undefined, f)
     window.dispatchEvent(new CustomEvent('connections:changed'))
     await openScope(c)
   } catch (e) { fail(e) }
+}
+
+async function openSqliteFile(): Promise<void> {
+  const [f] = await call<string[]>('dialog.open', { properties: ['openFile'], filters: [{ name: 'SQLite', extensions: ['sqlite', 'sqlite3', 'db', 'db3'] }, { name: 'All files', extensions: ['*'] }] })
+  if (f) await openSqlite(f)
+}
+
+const SQLITE = /\.(sqlite3?|db3?)$/i
+const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p
+const sqlWaiting: string[] = [] // .sql files that arrived while no SQL database was open
+
+/** SQLite files connect; anything else opens as SQL text in a query tab of the current database. */
+async function openFiles(paths: string[]): Promise<void> {
+  for (const p of paths) {
+    if (SQLITE.test(p)) await openSqlite(p)
+    else if (!sqlWaiting.includes(p)) sqlWaiting.push(p)
+  }
+  await openWaitingSql()
+}
+
+async function openWaitingSql(): Promise<void> {
+  if (!sqlWaiting.length) return
+  const id = ws().scopeId
+  if (!id || !scopes()[id]?.dialect) { toast(`Double-click a database connection to open ${sqlWaiting.map(baseName).join(', ')} in it.`); return }
+  for (const p of sqlWaiting.splice(0)) {
+    const open = ws().tabs.find((t) => t.diskPath === p)
+    if (open) { setWs({ active: open.id }); continue }
+    try {
+      openTab({ kind: 'query', title: baseName(p), content: await call<string>('file.read', p), diskPath: p }, { newTab: true })
+    } catch (e) { fail(e) }
+  }
+}
+
+async function pickFiles(): Promise<void> {
+  const files = await call<string[]>('dialog.open', { properties: ['openFile', 'multiSelections'], filters: [{ name: 'SQL and SQLite files', extensions: ['sql', 'sqlite', 'sqlite3', 'db', 'db3'] }, { name: 'All files', extensions: ['*'] }] })
+  if (files.length) await openFiles(files)
 }

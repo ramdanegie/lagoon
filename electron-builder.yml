@@ -9,6 +9,13 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+fileAssociations:
+  - ext: sql
+    name: SQL File
+    role: Editor
+  - ext: [sqlite, sqlite3, db]
+    name: SQLite Database
+    role: Editor
 asarUnpack:
   - resources/**
 win:

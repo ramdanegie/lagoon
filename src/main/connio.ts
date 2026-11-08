@@ -1,9 +1,12 @@
 // Export / import connections as an encrypted file, and Copy as URL (needs the stored secrets).
-import { readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { execFileSync } from 'child_process'
+import { dirname, join } from 'path'
 import { randomBytes, scryptSync, createCipheriv, createDecipheriv } from 'crypto'
 import type { Connection, Group } from '@shared/types'
 import { connectionToUrl } from '@shared/url'
 import { register } from './rpc'
+import { defaultPath, fromDbeaver, fromNavicat, fromTablePlus, withoutDuplicates, type ForeignApp } from './foreign'
 import { getConnection, listConnections, listGroups, saveConnection, saveGroup, secretsOf } from './store'
 
 const MAGIC = 'LGNCONN1'
@@ -57,5 +60,25 @@ register({
     }
     for (const c of data.connections ?? []) saveConnection({ ...c, id: '', groupId: c.groupId ? gmap.get(c.groupId) ?? null : null })
     return (data.connections ?? []).length
+  },
+  /** The app's own connections file if it is where the app keeps it by default. */
+  'conn.foreignDefault': (_c, app: ForeignApp) => { const p = defaultPath(app); return p && existsSync(p) ? p : undefined },
+  /** Import connections saved by TablePlus, DBeaver or Navicat; ones that already exist here are left out. */
+  'conn.importForeign': (_c, app: ForeignApp, path: string) => {
+    const raw = readFileSync(path)
+    // TablePlus may keep a binary plist; macOS converts it
+    const text = raw.subarray(0, 6).toString() === 'bplist' ? execFileSync('plutil', ['-convert', 'xml1', '-o', '-', path]).toString('utf8') : raw.toString('utf8')
+    const creds = join(dirname(path), 'credentials-config.json')
+    const parsed = app === 'tableplus' ? fromTablePlus(text) : app === 'dbeaver' ? fromDbeaver(text, existsSync(creds) ? readFileSync(creds) : undefined) : fromNavicat(text)
+    const r = withoutDuplicates(parsed, listConnections())
+    const groups = new Map(listGroups().map((g) => [g.name, g.id]))
+    for (const { group, ...c } of r.connections) {
+      if (group && !groups.has(group)) {
+        const before = new Set(listGroups().map((g) => g.id))
+        groups.set(group, saveGroup({ name: group }).find((g) => !before.has(g.id))!.id)
+      }
+      saveConnection({ ...c, id: '', groupId: group ? groups.get(group) ?? null : null })
+    }
+    return { imported: r.connections.length, duplicates: r.duplicates, skipped: r.skipped }
   }
 })

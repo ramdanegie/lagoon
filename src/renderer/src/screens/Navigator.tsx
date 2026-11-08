@@ -10,7 +10,7 @@ import { pluginMenuItems } from '../lib/plugins'
 import { Icon, kindIcon } from '../components/Icon'
 import { confirmDialog, menuAt, promptDialog, type MenuItem } from '../components/ui'
 import { ConnectionForm, DriverPicker, UrlImport, DRIVER_COLORS } from './ConnectionForm'
-import { ExportConnections, importConnectionsFile } from './ConnectionIO'
+import { ExportConnections, importConnectionsFile, importForeignConnections } from './ConnectionIO'
 import { openTool } from './Tools'
 import { fuzzy } from './Sidebar'
 
@@ -269,7 +269,11 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
     { label: 'New Connection from URL…', onClick: () => setForm({ step: 'url' }) },
     { label: 'New Group…', onClick: () => void newGroup() },
     { sep: true },
-    { label: 'Import Connections…', onClick: () => void importConnectionsFile().then((n) => { if (n) void loadConns() }) },
+    { label: 'Import Connections', submenu: [
+      { label: 'Lagoon File…', onClick: () => void importConnectionsFile().then((n) => { if (n) void loadConns() }) },
+      { sep: true },
+      ...(['tableplus', 'dbeaver', 'navicat'] as const).map((app) => ({ label: `From ${({ tableplus: 'TablePlus', dbeaver: 'DBeaver', navicat: 'Navicat (.ncx)…' })[app]}`, onClick: () => void importForeignConnections(app).then((n) => { if (n) void loadConns() }) }))
+    ] },
     { label: 'Export All Connections…', disabled: !conns.length, onClick: () => setExportIds(conns.map((c) => c.id)) },
     { label: 'Sort By', submenu: (['name', 'tag', 'driver'] as const).map((k) => ({ label: k[0].toUpperCase() + k.slice(1), checked: sortBy === k, onClick: () => setSortBy(k) })) }
   ]

@@ -23,6 +23,31 @@ export async function importConnectionsFile(): Promise<number> {
   }
 }
 
+type ForeignApp = 'tableplus' | 'dbeaver' | 'navicat'
+const FOREIGN: Record<ForeignApp, { name: string; filter: { name: string; extensions: string[] }; how: string }> = {
+  tableplus: { name: 'TablePlus', filter: { name: 'TablePlus connections', extensions: ['plist'] }, how: 'Pick Connections.plist from TablePlus\'s Data folder.' },
+  dbeaver: { name: 'DBeaver', filter: { name: 'DBeaver data sources', extensions: ['json'] }, how: 'Pick data-sources.json from the workspace\'s .dbeaver folder.' },
+  navicat: { name: 'Navicat', filter: { name: 'Navicat connections', extensions: ['ncx'] }, how: 'In Navicat use File ▸ Export Connections (tick Export Password), then pick the .ncx file.' }
+}
+
+/** Import another app's saved connections: its default file when found, else one the user picks. */
+export async function importForeignConnections(app: ForeignApp): Promise<number> {
+  const { name, filter, how } = FOREIGN[app]
+  const path = (await call<string | undefined>('conn.foreignDefault', app))
+    ?? (await call<string[]>('dialog.open', { title: `Import from ${name}`, message: how, properties: ['openFile'], filters: [filter, { name: 'All files', extensions: ['*'] }] }))[0]
+  if (!path) return 0
+  try {
+    const r = await call<{ imported: number; duplicates: number; skipped: string[] }>('conn.importForeign', app, path)
+    const notes = [r.duplicates ? `${r.duplicates} already in Lagoon` : '', r.skipped.length ? `skipped ${r.skipped.join(', ')}` : ''].filter(Boolean).join('; ')
+    toast(`Imported ${r.imported} connection(s) from ${name}${notes ? ` (${notes})` : ''}`, r.imported ? 'success' : undefined)
+    window.dispatchEvent(new CustomEvent('connections:changed'))
+    return r.imported
+  } catch (e) {
+    fail(e)
+    return 0
+  }
+}
+
 export function ExportConnections({ ids, onClose }: { ids: string[]; onClose: () => void }): ReactNode {
   const [db, setDb] = useState(false)
   const [ssh, setSsh] = useState(false)

@@ -29,7 +29,7 @@ function persistTabs(): void {
   persistTimer = setTimeout(() => {
     const { conn, tabs } = ws()
     // only this connection's editors: tabs from other connections live in the same window
-    if (conn) void call('editorTabs.set', conn.id, tabs.filter((t) => t.kind === 'query' && !t.filePath && scopes()[t.scope ?? '']?.conn.id === conn.id).map((t) => ({ title: t.title, content: t.content ?? '' })))
+    if (conn) void call('editorTabs.set', conn.id, tabs.filter((t) => t.kind === 'query' && !t.filePath && !t.diskPath && scopes()[t.scope ?? '']?.conn.id === conn.id).map((t) => ({ title: t.title, content: t.content ?? '' })))
   }, 800)
 }
 
@@ -168,11 +168,12 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
   const onChange = (v: string): void => {
     setText(v)
     updateTab(tab.id, { content: v })
-    if (tab.filePath && setting('queries.autoSave', true)) void saveFile(v, true)
+    if ((tab.filePath || tab.diskPath) && setting('queries.autoSave', true)) void saveFile(v, true)
     else persistTabs()
   }
 
   const saveFile = async (v = text, silent = false): Promise<void> => {
+    if (tab.diskPath) { await call('file.write', tab.diskPath, v); if (!silent) toast(`Saved ${tab.title}`); return }
     if (!tab.filePath) return
     const q = await call<{ name: string; keywords: string[] }>('queries.read', tab.filePath)
     await call('queries.write', tab.filePath, q.name, v, q.keywords)
@@ -318,7 +319,7 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
 
   const saveAs = async (): Promise<void> => {
     const p = await call<string | undefined>('dialog.save', { defaultPath: `${tab.title}.sql`, filters: [{ name: 'SQL', extensions: ['sql'] }] })
-    if (p) { await call('file.write', p, text); toast('Saved') }
+    if (p) { await call('file.write', p, text); updateTab(tab.id, { diskPath: p, filePath: undefined, title: p.split(/[\\/]/).pop() }); toast('Saved') }
   }
 
   const cm = (f: (v: EditorView) => boolean): (() => boolean) => () => { const v = view.current; if (v && v.hasFocus) { f(v); return true } return false }
@@ -342,7 +343,7 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
     'edit.fontDown': () => setFontSize(Math.max(9, fontSize - 1)),
     'view.results': () => setShowResults(!showResults),
     'file.saveAs': () => void saveAs(),
-    'edit.commit': () => { if (tab.filePath) { void saveFile(); return true } if (ws().tabApis[tab.id]?.pendingCount()) return false; void addToQueries(); return true }
+    'edit.commit': () => { if (tab.filePath || tab.diskPath) { void saveFile(); return true } if (ws().tabApis[tab.id]?.pendingCount()) return false; void addToQueries(); return true }
   })
 
   const runMenu = (): MenuItem[] => [
@@ -406,7 +407,7 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
       </div>
       <div className="runbar">
         <button className="btn ghost icon sm" aria-label="Editor settings" title="Editor settings" onClick={(e) => menuBelow(e.currentTarget, gearMenu())}><Icon name="gear" size={12} /></button>
-        <span className="faint" style={{ fontSize: 'var(--fs-xs)' }}>{tab.filePath ? 'Saved query · autosave' : ''}</span>
+        <span className="faint" style={{ fontSize: 'var(--fs-xs)' }}>{tab.filePath ? 'Saved query · autosave' : tab.diskPath ? `${tab.diskPath}${setting('queries.autoSave', true) ? ' · autosave' : ''}` : ''}</span>
         <span className="grow" />
         <div className="seg">
           <button title="Beautify (⌘I)" onClick={() => formatSel((x) => beautify(x, d))}>Beautify</button>
