@@ -56,6 +56,7 @@ try {
   await w.locator('.tour').waitFor({ state: 'detached' })
   step('next launch: no tour; Help ▸ Feature Tour replays all 13 steps')
   console.log('\nTOUR E2E OK')
+} catch (e) { for (const [i, p] of (ea.windows?.() ?? []).entries()) await p.screenshot({ path: join(shots, `FAIL-tour-${i}.png`) }).catch(() => {}); throw e
 } finally {
   await ea.close().catch(() => {})
   rmSync(ud, { recursive: true, force: true })

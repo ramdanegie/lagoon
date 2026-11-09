@@ -21,6 +21,7 @@ const MongoView = lazy(() => import('./MongoView').then((m) => ({ default: m.Mon
 const MetricsBoard = lazy(() => import('./MetricsBoard').then((m) => ({ default: m.MetricsBoard })))
 const Diagram = lazy(() => import('./Diagram').then((m) => ({ default: m.Diagram })))
 const UserManagement = lazy(() => import('./UserManagement').then((m) => ({ default: m.UserManagement })))
+const TablesOverview = lazy(() => import('./TablesOverview').then((m) => ({ default: m.TablesOverview })))
 
 const BackupDialog = lazy(() => import('./Backup').then((m) => ({ default: m.BackupDialog })))
 const RestoreDialog = lazy(() => import('./Backup').then((m) => ({ default: m.RestoreDialog })))
@@ -163,6 +164,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
       case 'metrics': return <Suspense fallback={null}><MetricsBoard key={t.id} tab={t} /></Suspense>
       case 'diagram': return <Suspense fallback={null}><Diagram key={t.id} tab={t} /></Suspense>
       case 'users': return <Suspense fallback={null}><UserManagement key={t.id} tab={t} /></Suspense>
+      case 'tables': return <Suspense fallback={null}><TablesOverview key={t.id} tab={t} /></Suspense>
       default: return <div className="empty">Empty tab</div>
     }
   }
@@ -192,7 +194,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
                 onContextMenu={(e) => menuAt(e, tabMenu(t))}
                 title={scopeTitle(t)}
               >
-                <Icon name={t.kind === 'query' ? 'sql' : t.kind === 'table' ? (t.objKind === 'view' ? 'view' : 'table') : t.kind === 'redis' ? 'key' : t.kind === 'mongo' ? 'collection' : t.kind === 'metrics' ? 'chart' : t.kind === 'diagram' ? 'diagram' : t.kind === 'users' ? 'user' : 'function'} size={12} />
+                <Icon name={t.kind === 'query' ? 'sql' : t.kind === 'tables' ? 'db' : t.kind === 'table' ? (t.objKind === 'view' ? 'view' : 'table') : t.kind === 'redis' ? 'key' : t.kind === 'mongo' ? 'collection' : t.kind === 'metrics' ? 'chart' : t.kind === 'diagram' ? 'diagram' : t.kind === 'users' ? 'user' : 'function'} size={12} />
                 <span className="title ellipsis">{t.title}</span>
                 {multiScope && t.scope && scopesMap[t.scope] && <span className="scope-label">{scopesMap[t.scope].database || scopesMap[t.scope].conn.name}</span>}
                 {dirty && <span className="dirty" aria-label="Unsaved changes" />}

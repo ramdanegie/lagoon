@@ -348,7 +348,13 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
       const k = `sec:${sc.id}:${schema}:${id}`
       const expanded = open[k] ?? id !== 'sequences'
       return [
-        row({ k, depth, label: `${title}`, caret: true, expanded, extra: <span className="count">{items.length}</span>, onToggle: () => toggle(k, !expanded), onClick: () => toggle(k, !expanded) }),
+        row({
+          k, depth, label: `${title}`, caret: true, expanded, extra: <span className="count">{items.length}</span>, onToggle: () => toggle(k, !expanded),
+          // SQL "Tables" opens the overview (row counts, sizes); the caret still expands the list
+          ...(id === 'tables' && sc.dialect
+            ? { onClick: () => { focusOn(sc.id, sc.dialect === 'postgres' ? schema : undefined); openTab({ scope: sc.id, kind: 'tables', title: `Tables · ${schema || sc.database}`, schema }) }, onDoubleClick: () => toggle(k, !expanded) }
+            : { onClick: () => toggle(k, !expanded) })
+        }),
         ...(expanded ? items.flatMap((o, i) => {
           const ok = `o:${sc.id}:${keyOf(o)}`
           const rk = `${ok}:${id}:${i}` // pinned objects are listed twice and PG function overloads share a name

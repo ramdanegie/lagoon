@@ -1,4 +1,4 @@
-import type { Column, DbObject, Dialect, ForeignKey, Index, Result, Trigger, DbUser } from '@shared/types'
+import type { Column, DbObject, Dialect, ForeignKey, Index, Result, Trigger, DbUser, TableStat } from '@shared/types'
 
 export interface ConnectParams {
   host: string
@@ -29,6 +29,7 @@ export interface SqlDriver {
   triggers(schema: string, table: string): Promise<Trigger[]>
   ddl(schema: string, name: string, kind: string): Promise<string>
   estimateCount(schema: string, table: string): Promise<number | null>
+  tableStats(schema: string): Promise<TableStat[]>
   query(sql: string): Promise<Result>
   cancel(): Promise<void>
   processes(): Promise<Result>

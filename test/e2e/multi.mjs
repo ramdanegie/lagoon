@@ -32,6 +32,23 @@ try {
   await w.getByText(/of 750 rows/).waitFor()
   step('connected from the tree, opened customers (shop)')
 
+  // clicking "Tables" opens the overview: counts, sizes, sortable, double-click opens a table
+  await w.getByRole('treeitem', { name: 'Tables', exact: true }).first().click()
+  await w.getByRole('tab', { name: /Tables · public/ }).waitFor()
+  await w.getByRole('gridcell', { name: 'orders', exact: true }).waitFor()
+  await w.getByRole('button', { name: 'Count exact rows' }).click()
+  await w.getByRole('gridcell', { name: '2,000', exact: true }).waitFor()
+  await w.getByRole('gridcell', { name: '750', exact: true }).waitFor()
+  const y = async (n) => (await w.getByRole('gridcell', { name: n, exact: true }).boundingBox()).y
+  await w.getByRole('columnheader', { name: /^Rows/ }).click()
+  assert.ok((await y('orders')) < (await y('customers')) && (await y('customers')) < (await y('nokey')), 'Rows sorted high to low')
+  await w.getByRole('columnheader', { name: /^Rows/ }).click()
+  assert.ok((await y('nokey')) < (await y('customers')), 'Rows sorted low to high')
+  await w.screenshot({ path: join(shots, 'S49-tables-overview.png') })
+  await w.getByRole('gridcell', { name: 'customers', exact: true }).dblclick()
+  await w.getByText(/of 750 rows/).waitFor()
+  step('Tables overview: exact counts, sort by rows, double-click opens the table')
+
   // a second database of the same connection opens in place, no new window
   await w.getByRole('treeitem', { name: 'crm', exact: true }).dblclick()
   await w.getByRole('treeitem', { name: 'contacts' }).dblclick()
@@ -68,6 +85,13 @@ try {
   await w.getByText(/of 3 rows/).waitFor()
   await w.screenshot({ path: join(shots, 'S47-multi.png') })
   step('second connection (MySQL) in the same window')
+
+  await w.getByRole('treeitem', { name: 'Tables', exact: true }).first().click() // MySQL local sorts first
+  await w.getByRole('tab', { name: /Tables · shop/ }).waitFor()
+  await w.getByRole('gridcell', { name: 'products', exact: true }).waitFor()
+  await w.getByRole('button', { name: 'Count exact rows' }).click()
+  await w.getByRole('gridcell', { name: '3', exact: true }).waitFor()
+  step('MySQL Tables overview')
 
   // switching back: each tab still reads its own database
   await w.getByRole('tab', { name: /customers/ }).click()

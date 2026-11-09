@@ -36,6 +36,15 @@ try {
   await w.getByRole('gridcell', { name: 'a', exact: true }).waitFor()
   step('SQLite file connected; the waiting .sql opened in a query tab and runs')
 
+  await w.getByRole('treeitem', { name: 'Tables', exact: true }).first().click()
+  await w.getByRole('tab', { name: /Tables · main/ }).waitFor()
+  await w.getByRole('gridcell', { name: 'notes', exact: true }).waitFor()
+  await w.getByRole('gridcell', { name: '2', exact: true }).waitFor() // SQLite counts exactly, no estimate
+  assert.equal(await w.getByRole('button', { name: 'Count exact rows' }).count(), 0)
+  assert.match(await w.locator('.bottombar').filter({ hasText: 'double-click to open' }).innerText(), /1 table · 2 rows · \d/)
+  await w.getByRole('tab', { name: /report\.sql/ }).click()
+  step('SQLite Tables overview: exact rows and sizes')
+
   await w.locator('.cm-content').last().click()
   await w.keyboard.press('Meta+ArrowDown')
   await w.keyboard.type(' -- edited')

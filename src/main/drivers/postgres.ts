@@ -1,6 +1,8 @@
 import pg from 'pg'
-import type { Column, DbObject, ForeignKey, Index, Result, Trigger, DbUser } from '@shared/types'
+import type { Column, DbObject, ForeignKey, Index, Result, Trigger, DbUser, TableStat } from '@shared/types'
 import { type ConnectParams, type SqlDriver, rowsOut } from './types'
+
+const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
 
 const FK_ACT: Record<string, string> = { a: 'NO ACTION', r: 'RESTRICT', c: 'CASCADE', n: 'SET NULL', d: 'SET DEFAULT' }
 // Everything arrives as text so the grid shows exactly what the server sent; booleans become true/false.
@@ -176,6 +178,19 @@ export class PostgresDriver implements SqlDriver {
   async estimateCount(schema: string, table: string): Promise<number | null> {
     const [r] = await this.rows<{ n: string }>(`SELECT c.reltuples::bigint AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1 AND c.relname = $2`, [schema, table])
     return r && Number(r.n) >= 0 ? Number(r.n) : null
+  }
+
+  async tableStats(schema: string): Promise<TableStat[]> {
+    const r = await this.rows<{ name: string; kind: string; n: string | null; data: string | null; idx: string | null; comment: string | null }>(
+      `SELECT c.relname AS name, CASE c.relkind WHEN 'v' THEN 'view' WHEN 'm' THEN 'matview' ELSE 'table' END AS kind,
+         CASE WHEN c.reltuples >= 0 THEN c.reltuples::bigint END AS n,
+         CASE WHEN c.relkind <> 'v' THEN pg_table_size(c.oid) END AS data,
+         CASE WHEN c.relkind <> 'v' THEN pg_indexes_size(c.oid) END AS idx,
+         obj_description(c.oid, 'pg_class') AS comment
+       FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
+       WHERE ns.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND NOT c.relispartition
+       ORDER BY c.relname`, [schema])
+    return r.map((x) => ({ name: x.name, kind: x.kind as TableStat['kind'], rows: n(x.n), data: n(x.data), index: n(x.idx), comment: x.comment }))
   }
 
   async query(sql: string): Promise<Result> {

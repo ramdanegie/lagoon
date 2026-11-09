@@ -2,7 +2,7 @@
 // a step whose target isn't on screen shows its card in the middle with a hint.
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
-import { call, useSettings } from '../lib/api'
+import { saveSetting, useSettings } from '../lib/api'
 
 interface Step { target?: string; title: string; body: ReactNode; missing?: string }
 
@@ -46,7 +46,7 @@ export function Tour(): ReactNode {
     return () => clearTimeout(t)
   }, [loaded])
 
-  const setStartup = (v: boolean): void => { void call('settings.set', 'tour.onStartup', v); if (!v) void call('settings.set', 'tour.done', true); else void call('settings.set', 'tour.done', false) }
+  const setStartup = (v: boolean): void => { saveSetting('tour.onStartup', v); saveSetting('tour.done', !v) }
   const close = (): void => useTour.setState({ open: false })
   // finishing every step means it has been seen: stop showing it at startup
   const complete = (): void => { close(); setStartup(false) }

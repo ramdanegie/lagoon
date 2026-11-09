@@ -1,6 +1,8 @@
 import mysql from 'mysql2/promise'
-import type { Column, DbObject, ForeignKey, Index, Result, Trigger, DbUser } from '@shared/types'
+import type { Column, DbObject, ForeignKey, Index, Result, Trigger, DbUser, TableStat } from '@shared/types'
 import { type ConnectParams, type SqlDriver, rowsOut } from './types'
+
+const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
 
 function sslOption(p: ConnectParams): mysql.ConnectionOptions['ssl'] {
   const m = p.ssl?.mode ?? 'PREFERRED'
@@ -114,6 +116,17 @@ export class MysqlDriver implements SqlDriver {
   async estimateCount(schema: string, table: string): Promise<number | null> {
     const [r] = await this.rows<{ n: string | null }>(`SELECT TABLE_ROWS AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`, [schema, table])
     return r?.n == null ? null : Number(r.n)
+  }
+
+  async tableStats(schema: string): Promise<TableStat[]> {
+    // TABLE_ROWS is exact for MyISAM and an estimate for InnoDB
+    const r = await this.rows<{ name: string; type: string; n: string | null; data: string | null; idx: string | null; comment: string | null }>(
+      `SELECT TABLE_NAME AS name, TABLE_TYPE AS type, TABLE_ROWS AS n, DATA_LENGTH AS data, INDEX_LENGTH AS idx, TABLE_COMMENT AS comment
+       FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME`, [schema])
+    return r.map((x) => {
+      const view = x.type === 'VIEW'
+      return { name: x.name, kind: view ? 'view' : 'table', rows: view ? null : n(x.n), data: view ? null : n(x.data), index: view ? null : n(x.idx), comment: view || !x.comment ? null : x.comment }
+    })
   }
 
   async query(sql: string): Promise<Result> {

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { readdirSync, existsSync } from 'fs'
 import { basename, dirname, join } from 'path'
-import type { Column, DbObject, ForeignKey, Index, Result, Trigger, DbUser } from '@shared/types'
+import type { Column, DbObject, ForeignKey, Index, Result, Trigger, DbUser, TableStat } from '@shared/types'
 import { type ConnectParams, type SqlDriver, rowsOut } from './types'
 
 const qi = (s: string): string => '"' + s.replace(/"/g, '""') + '"'
@@ -99,6 +99,23 @@ export class SqliteDriver implements SqlDriver {
   }
 
   estimateCount = async (): Promise<number | null> => null
+
+  /** Exact row counts (a local file counts quickly); sizes from dbstat when SQLite was built with it. */
+  async tableStats(schema: string): Promise<TableStat[]> {
+    const sizes = new Map<string, { data: number; index: number }>()
+    try {
+      for (const r of this.all<{ t: string; type: string; size: number }>(`SELECT m.tbl_name AS t, m.type, SUM(s.pgsize) AS size FROM ${qi(schema)}.sqlite_master m JOIN dbstat('${schema.replace(/'/g, "''")}') s ON s.name = m.name GROUP BY m.tbl_name, m.type`)) {
+        const e = sizes.get(r.t) ?? { data: 0, index: 0 }
+        if (r.type === 'index') e.index += r.size; else e.data += r.size
+        sizes.set(r.t, e)
+      }
+    } catch { /* no dbstat: sizes stay empty */ }
+    return (await this.objects(schema)).map((o) => ({
+      name: o.name, kind: o.kind, comment: null,
+      rows: o.kind === 'table' ? Number(this.all<{ c: number }>(`SELECT count(*) AS c FROM ${qi(schema)}.${qi(o.name)}`)[0].c) : null,
+      data: sizes.get(o.name)?.data ?? null, index: sizes.get(o.name)?.index ?? null
+    }))
+  }
 
   async query(sql: string): Promise<Result> {
     this.onSql(sql)

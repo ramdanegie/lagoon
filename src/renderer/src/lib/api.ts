@@ -25,7 +25,12 @@ export function useSetting(key: string, fallback: boolean): [boolean, (v: boolea
 export function useSetting<T>(key: string, fallback: T): [T, (v: T) => void]
 export function useSetting<T>(key: string, fallback: T): [T, (v: T) => void] {
   const v = useSettings((st) => st.s[key])
-  return [v === undefined ? fallback : (v as T), (nv: T) => void call('settings.set', key, nv)]
+  return [v === undefined ? fallback : (v as T), (nv: T) => saveSetting(key, nv)]
+}
+/** Update the local copy right away (controls react without waiting for the main process), then persist. */
+export function saveSetting(key: string, v: unknown): void {
+  useSettings.setState((st) => ({ s: { ...st.s, [key]: v } }))
+  void call('settings.set', key, v)
 }
 
 // ---------- command bus ----------

@@ -89,6 +89,7 @@ register({
   'db.triggers': (_c, s: string, schema: string, table: string) => sqlDriver(s).triggers(schema, table),
   'db.ddl': (_c, s: string, schema: string, name: string, kind: string) => sqlDriver(s).ddl(schema, name, kind),
   'db.estimate': (_c, s: string, schema: string, table: string) => sqlDriver(s).estimateCount(schema, table),
+  'db.tableStats': (_c, s: string, schema: string) => sqlDriver(s).tableStats(schema),
   'db.rows': async (_c, s: string, q: TableQuery, cols: { name: string; type: string }[]) => {
     const d = sqlDriver(s)
     const sql = selectSql(d.dialect, q, cols)
