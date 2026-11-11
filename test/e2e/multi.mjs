@@ -109,6 +109,29 @@ try {
   await w.getByRole('gridcell', { name: 'Contact 1', exact: true }).waitFor()
   step('New Query Here runs on that database')
 
+  // many columns and many tabs scroll inside the grid / tab strip; the layout never grows past the window
+  const fits = () => w.evaluate(() => {
+    const strip = document.querySelector('.tabbar'), grid = [...document.querySelectorAll('.grid')].find((g) => g.offsetParent)
+    return { win: innerWidth, doc: document.documentElement.scrollWidth, ws: document.querySelector('.ws').getBoundingClientRect().width,
+      strip: strip.scrollWidth > strip.clientWidth, grid: grid ? grid.scrollWidth > grid.clientWidth : null }
+  })
+  await w.locator('.cm-content').last().click()
+  await w.keyboard.press('Meta+A')
+  await w.keyboard.insertText(`select ${Array.from({ length: 60 }, (_, i) => `${i} as column_${i}`).join(', ')}`)
+  await w.getByRole('button', { name: /Run Current|Run All/ }).first().click()
+  await w.getByRole('columnheader', { name: /^column_0\b/ }).waitFor()
+  let f = await fits()
+  assert.ok(f.ws <= f.win && f.doc <= f.win, `layout wider than the window: ${JSON.stringify(f)}`)
+  assert.equal(f.grid, true, 'wide result scrolls sideways inside the grid')
+  for (let i = 0; i < 15; i++) await w.locator('.tabbar').first().getByRole('button', { name: 'New SQL query' }).click()
+  f = await fits()
+  assert.ok(f.ws <= f.win && f.doc <= f.win, `layout wider than the window: ${JSON.stringify(f)}`)
+  assert.equal(f.strip, true, 'tab strip scrolls')
+  const [tabBox, stripBox] = await Promise.all([w.locator('.tab.active').first().boundingBox(), w.locator('.tabbar').first().boundingBox()])
+  assert.ok(tabBox.x + tabBox.width <= stripBox.x + stripBox.width + 1, 'new tab scrolled into view')
+  await w.screenshot({ path: join(shots, 'S50-many-tabs.png') })
+  step('wide results and many tabs scroll in place; the newest tab is in view')
+
   // disconnecting one connection closes only its tabs
   await w.getByRole('treeitem', { name: 'MySQL local' }).click({ button: 'right' })
   await w.getByRole('menuitem', { name: 'Disconnect' }).click()

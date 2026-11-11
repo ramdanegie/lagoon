@@ -120,7 +120,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'], progress { acc
 .tabs > button:hover:not(.on) { background: var(--bg-hover); }
 
 /* ---------- workspace layout ---------- */
-.ws { display: grid; grid-template-rows: var(--h-toolbar) 1fr; height: 100%; }
+.ws { display: grid; grid-template-rows: var(--h-toolbar) 1fr; grid-template-columns: minmax(0, 1fr); height: 100%; } /* minmax(0, …): wide grids and many tabs scroll inside, never stretch the window */
 .toolbar { display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-5); background: var(--bg-panel); border-bottom: 1px solid var(--border); }
 .toolbar.mac { padding-left: 80px; }
 .status-bar { flex: 1; min-width: 160px; max-width: 520px; margin: 0 auto; height: 28px; border-radius: var(--r-md); background: var(--bg-input); border: 1px solid var(--border); display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-5); position: relative; overflow: hidden; font-size: var(--fs-sm); }
@@ -134,7 +134,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'], progress { acc
 .resizer.h { width: auto; height: 4px; margin: -2px 0; cursor: row-resize; }
 .main-area { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .tabbar { height: var(--h-tabbar); display: flex; background: var(--bg-app); border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; flex: none; }
-.tabbar::-webkit-scrollbar { height: 0; }
+.tabbar::-webkit-scrollbar, .bottombar::-webkit-scrollbar { height: 4px; }
+.tabbar::-webkit-scrollbar-thumb, .bottombar::-webkit-scrollbar-thumb { border: 0; }
 .tab { min-width: 120px; max-width: 220px; padding: 0 var(--sp-3) 0 var(--sp-5); display: flex; align-items: center; gap: var(--sp-3); border-right: 1px solid var(--border); color: var(--fg-muted); font-size: var(--fs-sm); flex: none; }
 .tab.active { background: var(--bg-panel); color: var(--fg); box-shadow: inset 0 -2px 0 var(--focus); }
 .tab.preview .title { font-style: italic; }
@@ -143,7 +144,8 @@ input[type='checkbox'], input[type='radio'], input[type='range'], progress { acc
 .tab .close:hover { background: var(--bg-hover); }
 .tab .dirty { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); }
 .content { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg-panel); }
-.bottombar { height: var(--h-bottombar); display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-4); border-top: 1px solid var(--border); background: var(--bg-panel); flex: none; font-size: var(--fs-sm); }
+.bottombar { height: var(--h-bottombar); display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-4); border-top: 1px solid var(--border); background: var(--bg-panel); flex: none; font-size: var(--fs-sm); overflow-x: auto; overflow-y: hidden; }
+.bottombar > :not(.grow) { flex: none; } /* narrow panes scroll the bar instead of squashing its controls */
 .console { height: 160px; border-top: 1px solid var(--border); background: var(--bg-input); overflow: auto; font-family: var(--font-mono); font-size: var(--fs-xs); padding: var(--sp-3) var(--sp-4); user-select: text; flex: none; }
 .console .time { color: var(--fg-faint); margin-right: var(--sp-4); }
 

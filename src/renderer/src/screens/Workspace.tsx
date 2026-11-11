@@ -62,6 +62,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
   useEffect(() => { void openWaitingSql() }, [focus])
 
   useEffect(() => { consoleRef.current?.scrollTo(0, consoleRef.current.scrollHeight) }, [s.console.length, s.showConsole])
+  useEffect(() => { document.querySelectorAll('.tab.active').forEach((el) => el.scrollIntoView({ block: 'nearest', inline: 'nearest' })) }, [s.active, s.tabs.length])
 
   const activeTab = s.tabs.find((t) => t.id === s.active)
   const activeApi = s.active ? s.tabApis[s.active] : undefined
@@ -180,7 +181,7 @@ export function Workspace({ connectionId, file }: { connectionId?: string; file?
     const activeInPane = list.find((t) => t.id === s.active) ?? list.find((t) => t.id === (n === s.activePane ? s.active : undefined)) ?? list[list.length - 1]
     return (
       <div className="main-area" onMouseDown={() => { if (s.activePane !== n) setWs({ activePane: n, active: activeInPane?.id ?? s.active }) }} style={{ outline: s.split && s.activePane === n ? '1px solid var(--accent)' : undefined, outlineOffset: -1 }}>
-        <div className="tabbar" role="tablist" data-tour={n === 0 ? 'tabs' : undefined}>
+        <div className="tabbar" role="tablist" data-tour={n === 0 ? 'tabs' : undefined} onWheel={(e) => { if (!e.deltaX) e.currentTarget.scrollLeft += e.deltaY }}>
           {list.map((t) => {
             const dirty = (s.tabApis[t.id]?.pendingCount() ?? 0) > 0
             return (
