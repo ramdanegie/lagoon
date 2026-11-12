@@ -1,6 +1,6 @@
 // JS plugin host: bundles live in <userData>/plugins/<id>/ and run in a fresh node:vm context per command.
 // Also: app version / data path and the app-wide passcode lock state (Settings > Security).
-import { app, BrowserWindow, type WebContents } from 'electron'
+import { app, BrowserWindow, type WebContents, systemPreferences } from 'electron'
 import { basename, join, resolve, sep } from 'path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
@@ -199,5 +199,13 @@ register({
   'app.version': () => app.getVersion(),
   'app.dataPath': () => app.getPath('userData'),
   'lock.get': () => isLocked(),
-  'lock.set': (_c, v: boolean) => setLocked(!!v)
+  'lock.set': (_c, v: boolean) => setLocked(!!v),
+  'lock.touchIdAvailable': () => process.platform === 'darwin' && systemPreferences.canPromptTouchID(),
+  /** Main checks the fingerprint and unlocks itself, so the renderer cannot skip the check. */
+  'lock.touchId': async () => {
+    if (!isLocked() || !getSetting('security.touchId', false) || process.platform !== 'darwin' || !systemPreferences.canPromptTouchID()) return false
+    try { await systemPreferences.promptTouchID('unlock your databases') } catch { return false }
+    setLocked(false)
+    return true
+  }
 })

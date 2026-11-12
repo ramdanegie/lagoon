@@ -23,6 +23,11 @@ function LockScreen({ ready, hash }: { ready: boolean; hash: string }): ReactNod
   const ref = useRef<HTMLDivElement>(null)
   const [code, setCode] = useState('')
   const [err, setErr] = useState('')
+  const [touchOn] = useSetting('security.touchId', DEFAULTS['security.touchId'])
+  const [touch, setTouch] = useState(false)
+  useEffect(() => { if (touchOn) void call<boolean>('lock.touchIdAvailable').then(setTouch) }, [touchOn])
+  const askTouch = (): void => { void call('lock.touchId') }
+  useEffect(() => { if (ready && touch) askTouch() }, [ready, touch]) // ask right away; the passcode stays as the fallback
   // keep keyboard focus out of the app behind the lock
   useLayoutEffect(() => {
     const sibs = [...(ref.current?.parentElement?.children ?? [])].filter((el) => el !== ref.current)
@@ -44,6 +49,7 @@ function LockScreen({ ready, hash }: { ready: boolean; hash: string }): ReactNod
           <input id="lock-code" className="input" type="password" autoFocus placeholder="Passcode" value={code} aria-invalid={!!err} aria-describedby={err ? 'lock-err' : undefined} onChange={(e) => { setCode(e.target.value); setErr('') }} />
           {err && <div id="lock-err" className="danger-text" role="alert">{err}</div>}
           <button className="btn primary" type="submit" disabled={!code}>Unlock</button>
+          {touch && <button className="btn" type="button" onClick={askTouch}>Use Touch ID</button>}
         </form>
       )}
     </div>

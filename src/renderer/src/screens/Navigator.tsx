@@ -1,7 +1,7 @@
 // Connection tree: connections → databases → schemas → objects, all in one window. Opening a database creates a
 // scope (its own session); objects open as tabs that remember their scope.
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import type { Column, Connection, DbObject, DriverId, Group, Tag } from '@shared/types'
+import type { Column, Connection, DbObject, DriverId, Group, ObjectKind, Tag } from '@shared/types'
 import { DRIVERS } from '@shared/types'
 import { qt, truncateSql, dropObjectSql, cloneTableSql } from '@shared/sqlgen'
 import { call, errText, fail, toast, useSetting } from '../lib/api'
@@ -17,6 +17,10 @@ import { fuzzy } from './Sidebar'
 type FormState = { step: 'driver' } | { step: 'url' } | { step: 'form'; initial: Partial<Connection> & { driver: DriverId } } | null
 
 const ask = (title: string): Promise<string | null> => promptDialog(title, '', { password: true, ok: 'Connect' })
+/** A table, view or collection kept at the top of the tree, across connections. ⌥⌘1–9 open the first nine. */
+type Favorite = { connId: string; database?: string; schema: string; name: string; kind: ObjectKind }
+const favKey = (f: Favorite): string => `${f.connId}|${f.database ?? ''}|${f.schema}|${f.name}`
+
 const isSql = (d: DriverId): boolean => d === 'postgres' || d === 'mysql' || d === 'mariadb' || d === 'sqlite'
 
 export function Navigator({ filter }: { filter: string }): ReactNode {
@@ -198,6 +202,26 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
   }
 
   const [pins, setPins] = useSetting<Record<string, string[]>>('pins', {})
+  const [favorites, setFavorites] = useSetting<Favorite[]>('favorites', [])
+  const toggleFavorite = (f: Favorite): void => setFavorites(favorites.some((x) => favKey(x) === favKey(f)) ? favorites.filter((x) => favKey(x) !== favKey(f)) : [...favorites, f])
+  const openFavorite = async (f: Favorite): Promise<void> => {
+    const c = conns.find((x) => x.id === f.connId)
+    if (!c) return toast('Its connection was deleted.', 'error')
+    try {
+      const id = await openScope(c, { database: f.database, ask })
+      openObj(scopes()[id], { schema: f.schema, name: f.name, kind: f.kind }, false)
+    } catch (e) { fail(e) }
+  }
+  // shortcut: only while the Connections list is showing in the sidebar; move to Workspace if that matters
+  useEffect(() => {
+    const h = (e: KeyboardEvent): void => {
+      const n = /^Digit([1-9])$/.exec(e.code)
+      const f = n && e.altKey && (e.metaKey || e.ctrlKey) && !e.shiftKey ? favorites[Number(n[1]) - 1] : undefined
+      if (f) { e.preventDefault(); void openFavorite(f) }
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  })
   const itemMenu = (sc: Scope, o: DbObject): MenuItem[] => {
     const sel = sc.selectedObjects
     const many = sel.some((x) => keyOf(x) === keyOf(o)) && sel.length > 1 ? sel : [o]
@@ -219,6 +243,10 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
         { label: 'DROP', onClick: () => void copyScript(sc, o, 'drop') },
         ...(isTable ? [{ label: 'TRUNCATE', onClick: () => void copyScript(sc, o, 'truncate') }, { label: 'SELECT first 100', onClick: () => void copyScript(sc, o, 'select') }] : [])
       ] }] : []),
+      ...(o.kind === 'table' || o.kind === 'view' || o.kind === 'matview' || o.kind === 'collection' ? [{
+        label: favorites.some((f) => favKey(f) === favKey({ connId: sc.conn.id, database: sc.database, schema: o.schema, name: o.name, kind: o.kind })) ? 'Remove from Favorites' : 'Add to Favorites',
+        onClick: () => toggleFavorite({ connId: sc.conn.id, database: sc.database, schema: o.schema, name: o.name, kind: o.kind })
+      }] : []),
       { label: pinned ? 'Unpin from Top' : 'Pin to Top', onClick: () => setPins({ ...pins, [pinKey]: pinned ? (pins[pinKey] ?? []).filter((p) => p !== keyOf(o)) : [...(pins[pinKey] ?? []), keyOf(o)] }) },
       ...(sql ? [
         { sep: true },
@@ -539,6 +567,22 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
         </div>
       ) : (
         <>
+          {favorites.length > 0 && row({ k: 'fav', depth: 0, label: 'Favorites', icon: <Icon name="star" size={13} className="faint" />, caret: true, expanded: open.fav ?? true, onToggle: () => toggle('fav', !(open.fav ?? true)), onClick: () => toggle('fav', !(open.fav ?? true)) })}
+          {favorites.length > 0 && (open.fav ?? true) && favorites.map((f, i) => {
+            const c = conns.find((x) => x.id === f.connId)
+            const where = `${c?.name ?? 'deleted connection'}${f.database ? ` · ${f.database}` : ''}`
+            return row({
+              k: `fav:${favKey(f)}`, depth: 1, label: f.name, dim: !c,
+              icon: <Icon name={kindIcon(f.kind)} size={13} className="faint" />,
+              extra: <>
+                <span className="faint ellipsis" style={{ fontSize: 'var(--fs-xs)', marginLeft: 'var(--sp-2)', flex: '1 1 0', minWidth: 0 }}>{where}</span>
+                {i < 9 && <span className="faint" style={{ fontSize: 'var(--fs-xs)', flex: 'none', marginRight: 'var(--sp-2)' }}>⌥⌘{i + 1}</span>}
+              </>,
+              title: `${f.name}\n${where}${f.schema ? ` · ${f.schema}` : ''}`,
+              onClick: () => void openFavorite(f), onDoubleClick: () => void openFavorite(f),
+              onMenu: (e) => menuAt(e, [{ label: 'Open', onClick: () => void openFavorite(f) }, { label: 'Remove from Favorites', onClick: () => toggleFavorite(f) }])
+            })
+          })}
           {renderGroup(null, 0)}
           {ungrouped.flatMap((c) => renderConn(c, 0))}
         </>

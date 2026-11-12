@@ -53,6 +53,7 @@ export const DEFAULTS = {
   'security.defaultSafeMode': 0,
   'security.passcodeHash': '', // sha256 hex of the passcode; '' = off
   'security.autoLockMinutes': 0,
+  'security.touchId': false, // macOS: unlock with Touch ID; the passcode stays as the fallback
   // csv copy/paste
   'csv.delimiter': ',',
   'csv.quote': 'auto',

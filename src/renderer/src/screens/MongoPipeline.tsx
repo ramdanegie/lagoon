@@ -29,7 +29,7 @@ const TEMPLATES: Record<string, string> = {
 const PREVIEW = 100
 
 interface Stage { op: string; body: string; on: boolean }
-export const pipelineText = (stages: Stage[]): string => `[\n${stages.filter((s) => s.on).map((s) => `  { ${s.op}: ${s.body.trim() || '{}'} }`).join(',\n')}\n]`
+const pipelineText = (stages: Stage[]): string => `[\n${stages.filter((s) => s.on).map((s) => `  { ${s.op}: ${s.body.trim() || '{}'} }`).join(',\n')}\n]`
 
 export function MongoPipeline({ coll, visible }: { coll: string; visible: boolean }): ReactNode {
   const sessionId = useWs((s) => s.sessionId)

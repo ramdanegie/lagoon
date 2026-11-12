@@ -143,6 +143,19 @@ try {
   rmSync(out, { recursive: true, force: true })
   step('Export from the table: whole table as Markdown, current page as XML')
 
+  // favorites: listed at the top of the tree, ⌥⌘1 opens the first one
+  await w.getByRole('treeitem', { name: 'customers', exact: true }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'Add to Favorites' }).click()
+  await w.getByRole('treeitem', { name: 'Favorites' }).waitFor()
+  assert.equal(await w.getByRole('treeitem', { name: 'customers', exact: true }).count(), 2)
+  await w.getByRole('tab', { name: /customers/ }).click({ button: 'middle' })
+  await w.getByRole('tab', { name: /customers/ }).waitFor({ state: 'detached' })
+  await w.keyboard.press('Meta+Alt+Digit1')
+  await w.getByRole('tab', { name: /customers/ }).waitFor()
+  await w.getByText(/of 750 rows/).waitFor()
+  await w.screenshot({ path: join(shots, 'S57-favorites.png') })
+  step('favorites at the top of the tree; ⌥⌘1 opens the first')
+
   // a query in the crm tab runs against crm
   await w.getByRole('treeitem', { name: 'contacts' }).click({ button: 'right' })
   await w.getByRole('menuitem', { name: 'New Query Here' }).click()
@@ -179,6 +192,19 @@ try {
   await w.getByRole('tab', { name: /products/ }).waitFor({ state: 'detached' })
   assert.ok(await w.getByRole('tab', { name: /customers/ }).count())
   step('disconnecting MySQL closed only its tabs')
+
+  // Touch ID unlock (system prompt mocked): cancelled keeps the lock, success opens it
+  await ea.evaluate(({ systemPreferences }) => { systemPreferences.canPromptTouchID = () => true; systemPreferences.promptTouchID = async () => { throw new Error('cancelled') } })
+  await w.evaluate(async () => { await window.api.call('settings.set', 'security.passcodeHash', 'f'.repeat(64)); await window.api.call('settings.set', 'security.touchId', true); await window.api.call('lock.set', true) })
+  const lock = w.getByRole('dialog', { name: 'Lagoon is locked' })
+  await lock.getByRole('button', { name: 'Use Touch ID' }).waitFor()
+  await w.waitForTimeout(300)
+  assert.ok(await lock.isVisible(), 'a cancelled Touch ID prompt keeps the app locked')
+  await ea.evaluate(({ systemPreferences }) => { systemPreferences.promptTouchID = async () => {} })
+  await lock.getByRole('button', { name: 'Use Touch ID' }).click()
+  await lock.waitFor({ state: 'detached' })
+  await w.evaluate(() => window.api.call('settings.set', 'security.passcodeHash', ''))
+  step('Touch ID unlocks; a cancelled prompt leaves the passcode screen')
 
   assert.deepEqual(errors, [], errors.join('\n'))
   console.log('\nMULTI E2E OK')

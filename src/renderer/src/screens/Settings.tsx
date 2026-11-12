@@ -401,9 +401,16 @@ function Security(): ReactNode {
       <Group title="Passcode">
         <Passcode />
         <Select k="security.autoLockMinutes" label="Lock when away for" options={[[0, 'Never'], [1, '1 minute'], [5, '5 minutes'], [60, '1 hour'], [300, '5 hours']]} hint="Asked at startup and after the app has been in the background this long" />
+        <TouchId />
       </Group>
     </>
   )
+}
+
+function TouchId(): ReactNode {
+  const [can, setCan] = useState(false)
+  useEffect(() => { void call<boolean>('lock.touchIdAvailable').then(setCan) }, [])
+  return can ? <Toggle k="security.touchId" label="Unlock with Touch ID" hint="The passcode still works when Touch ID is not available" /> : null
 }
 
 function Csv(): ReactNode {
