@@ -168,6 +168,25 @@ try {
   await w.getByRole('tab', { name: 'Data', exact: true }).click()
   step('Stats view profiles every column (unique, nulls, distribution, common values)')
 
+  // masking: exported emails are hidden, other columns untouched, the database unchanged
+  const out2 = mkdtempSync(join(tmpdir(), 'lg-mask-'))
+  await ea.evaluate(({ dialog }, dir) => { dialog.showSaveDialog = async (_w, o) => ({ canceled: false, filePath: `${dir}/${o.defaultPath}` }) }, out2)
+  await w.getByRole('button', { name: 'Export', exact: true }).click()
+  await w.getByRole('menuitem', { name: 'Current Page…' }).click()
+  const xd = w.getByRole('dialog')
+  await xd.getByRole('tab', { name: 'JSON', exact: true }).click()
+  await xd.getByRole('checkbox', { name: 'Mask sensitive columns' }).check()
+  await xd.getByText('Masked here: email').waitFor()
+  await xd.getByRole('button', { name: 'Export…' }).click()
+  await w.getByText(/Exported 300 rows/).waitFor()
+  const masked = JSON.parse(readFileSync(join(out2, 'customers.json'), 'utf8'))
+  assert.equal(masked.length, 300)
+  assert.ok(masked.every((r) => /^c\*\*\*@example\.com$/.test(r.email)), 'every email masked')
+  assert.ok(masked.some((r) => r.city === 'Paris') && masked.some((r) => /^Customer \d+$/.test(r.name)), 'other columns kept')
+  assert.ok(await w.getByRole('gridcell', { name: 'c4@example.com', exact: true }).count(), 'the grid still shows real data')
+  rmSync(out2, { recursive: true, force: true })
+  step('masking: exported emails hidden, other columns and the database untouched')
+
   // a query in the crm tab runs against crm
   await w.getByRole('treeitem', { name: 'contacts' }).click({ button: 'right' })
   await w.getByRole('menuitem', { name: 'New Query Here' }).click()

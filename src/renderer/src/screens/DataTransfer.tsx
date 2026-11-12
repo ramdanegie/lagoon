@@ -8,6 +8,7 @@ import { ws } from '../lib/ws'
 import { Modal } from '../components/ui'
 import { useJobs, JobStatus } from './ImportExport'
 import { useSide, useSqlConns, SidePicker, confirmTarget, sideLabel, sideReady, plural } from './DataSync'
+import { MaskingOptions, useMaskRules } from './Masking'
 import '../styles/importexport.css'
 import '../styles/sync.css'
 
@@ -32,6 +33,8 @@ export function DataTransfer({ items, onClose }: { items: DbObject[]; onClose: (
   const [coe, setCoe] = useState(false)
   const [tx, setTx] = useState(true)
   const [noFk, setNoFk] = useState(false)
+  const [masking, setMasking] = useState(false)
+  const [maskRules] = useMaskRules()
   const [jobId, setJobId] = useState<string>()
   const job = useJobs((s) => s.list.find((j) => j.id === jobId))
   const log = useJobs((s) => (jobId ? s.logs[jobId] : undefined))
@@ -90,7 +93,7 @@ export function DataTransfer({ items, onClose }: { items: DbObject[]; onClose: (
       target = { sessionId: dst.s.sessionId!, schema }
     }
     try {
-      setJobId(await call<string>('transfer.run', { source: { sessionId: src.s.sessionId, schema: src.s.schema }, target, tables, batch, continueOnError: coe, transaction: tx, disableFk: noFk }))
+      setJobId(await call<string>('transfer.run', { source: { sessionId: src.s.sessionId, schema: src.s.schema }, target, tables, batch, continueOnError: coe, transaction: tx, disableFk: noFk, mask: masking ? maskRules : undefined }))
     } catch (e) { fail(e) }
   }
 
@@ -220,6 +223,7 @@ export function DataTransfer({ items, onClose }: { items: DbObject[]; onClose: (
           <input type="checkbox" checked={noFk} onChange={(e) => setNoFk(e.target.checked)} /> Turn off foreign key checks while loading
         </label>
       </div>
+      <MaskingOptions on={masking} setOn={setMasking} columns={[...new Set(checked.flatMap((o) => (cols[colKey(o)] ?? []).map((c) => c.name)))]} />
       {log && <pre className="code sy-log" aria-label="Transfer summary">{log}</pre>}
     </Modal>
   )

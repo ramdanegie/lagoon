@@ -5,6 +5,7 @@ import { once } from 'events'
 import type { Column, Dialect } from '@shared/types'
 import { qt, type CellValue } from '@shared/sqlgen'
 import { insertManySql } from '@shared/importexport'
+import { masker, type MaskRule } from '@shared/masking'
 import { classify, convertValue, createSql, cursorSelect, fkOrder, isIdentity, mapType, pageSql, resetSequenceSql, type ReadSpec } from '@shared/transfer'
 import { register } from './rpc'
 import { openSession, closeSession, session, sqlDriver, buildDriver } from './sessions'
@@ -118,6 +119,7 @@ export interface XRun {
   continueOnError: boolean
   transaction: boolean
   disableFk: boolean
+  mask?: MaskRule[] // rewrite matching columns on the way to the target
 }
 
 const plural = (n: number, w: string): string => `${n.toLocaleString('en-US')} ${w}${n === 1 ? '' : 's'}`
@@ -196,6 +198,7 @@ async function runTransfer(j: JobCtl, o: XRun): Promise<{ message: string; outpu
     }
 
     let total = 0
+    const salt = crypto.randomUUID() // pseudonyms match across tables of this transfer only
     for (let idx = 0; idx < order.length; idx++) {
       if (j.cancelled) throw new Error('Cancelled')
       const p = plan.get(order[idx])!
@@ -229,8 +232,9 @@ async function runTransfer(j: JobCtl, o: XRun): Promise<{ message: string; outpu
         let n = 0
         let bad = 0
         const onErr = (msg: string): void => { if (++bad <= MAX_LOGGED) log(`${label}: row skipped: ${msg}`) }
+        const m = o.mask && masker(spec.cols, o.mask, salt)
         for await (const rows of readPages(src.d, spec, o.batch, j, false)) {
-          const vals = rows.map((r) => r.map((v, i) => convertValue(v, infos[i], td)))
+          const vals = (m ? rows.map(m) : rows).map((r) => r.map((v, i) => convertValue(v, infos[i], td)))
           n += await insertRows(sink, tSchema, tgt, pairs.map((x) => x.name), pairs.map((x) => x.type), vals, { coe: o.continueOnError, tx: inTx }, onErr)
           j.progress((idx + (p.est ? Math.min(1, n / p.est) : 0)) / order.length, `${tgt}: ${n.toLocaleString('en-US')} rows`)
         }

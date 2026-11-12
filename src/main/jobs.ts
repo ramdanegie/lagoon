@@ -8,6 +8,7 @@ import type { Column, DbObject, Dialect, JobProgress } from '@shared/types'
 import { selectSql, createTableSql, isNumericType, qt, type CellValue } from '@shared/sqlgen'
 import { splitStatements } from '@shared/split'
 import { parseDelimited, parseJsonRecords, jsonColumns, uniqueNames, csvRow, typedValue, importValue, exportValue, insertManySql, importBatchSql, expandPattern, markupText, exportExt, EXPORT_FORMATS, type Conflict, type CsvOut, type ExportFormat } from '@shared/importexport'
+import { masker, type MaskRule } from '@shared/masking'
 import { register } from './rpc'
 import { session, buildDriver } from './sessions'
 import { secretsOf } from './store'
@@ -295,12 +296,17 @@ interface ExportOpts {
   pretty: boolean
   sql: Record<string, { structure: boolean; drop: boolean; data: boolean }> // key: schema.name
   gzip: boolean
+  mask?: MaskRule[]
 }
+
+/** Rows rewritten by the masking rules on their way into the file; null when no rule applies. */
+async function* maskPages(pages: Pages, m: (row: unknown[]) => unknown[]): Pages { for await (const rows of pages) yield rows.map(m) }
 
 async function exportItems(j: JobCtl, sessionId: string, d: SqlDriver, o: ExportOpts): Promise<{ message: string; output: string }> {
   const conn = session(sessionId).conn
   const database = d.currentDatabase()
   const estimates: (number | null)[] = []
+  const salt = crypto.randomUUID() // pseudonyms match across tables of this export only
   for (const it of o.items) estimates.push(await d.estimateCount(it.schema, it.name).catch(() => null))
   let total = 0
   const tick = (idx: number, done: number): void => {
@@ -311,7 +317,9 @@ async function exportItems(j: JobCtl, sessionId: string, d: SqlDriver, o: Export
     const it = o.items[idx]
     const cols = await d.columns(it.schema, it.name)
     let done = 0
-    return { cols, pages: tablePages(d, it, cols, (n) => { done += n; total += n; tick(idx, done) }, j) }
+    const pages = tablePages(d, it, cols, (n) => { done += n; total += n; tick(idx, done) }, j)
+    const m = o.mask && masker(cols.map((c) => c.name), o.mask, salt)
+    return { cols, pages: m ? maskPages(pages, m) : pages }
   }
 
   if (o.format === 'sql') {
@@ -362,9 +370,10 @@ async function exportItems(j: JobCtl, sessionId: string, d: SqlDriver, o: Export
 }
 
 /** Already-loaded result rows (query results) → one file. */
-async function exportRows(o: { path: string; format: ExportOpts['format']; columns: string[]; rows: unknown[][]; table: string; dialect: Dialect; csv: CsvOut; pretty: boolean }): Promise<void> {
+async function exportRows(o: { path: string; format: ExportOpts['format']; columns: string[]; rows: unknown[][]; table: string; dialect: Dialect; csv: CsvOut; pretty: boolean; mask?: MaskRule[] }): Promise<void> {
   const path = checkPath(o.path)
-  const pages = (async function* () { yield o.rows })()
+  const m = o.mask && masker(o.columns, o.mask, crypto.randomUUID())
+  const pages = (async function* () { yield m ? o.rows.map(m) : o.rows })()
   const numeric = o.columns.map((_c, i) => o.rows.slice(0, 200).every((r) => r[i] === null || typeof r[i] === 'number'))
   if (o.format === 'xlsx') return writeXlsx(path, o.table, o.columns, numeric, pages)
   return writeText(path, o.format === 'sql' ? insertText(o.dialect, '', o.table, o.columns, [], pages) : textFor(o.format, o.table, o.columns, numeric, pages, o))

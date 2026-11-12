@@ -9,6 +9,7 @@ import { useWs, ws, guard, loadObjects } from '../lib/ws'
 import { Modal, Popover, confirmDialog, menuAt, type MenuItem } from '../components/ui'
 import { Grid } from '../components/Grid'
 import { Icon } from '../components/Icon'
+import { MaskingOptions, useMaskRules } from './Masking'
 import '../styles/importexport.css'
 
 // ---------- jobs store (also used by Backup.tsx) ----------
@@ -378,6 +379,8 @@ export function ExportDialog({ items, onClose }: { items: DbObject[]; onClose: (
   const [pretty, setPretty] = useState(true)
   const [sqlFlags, setSqlFlags] = useState<Record<string, SqlFlags>>({})
   const [gzip, setGzip] = useState(false)
+  const [masking, setMasking] = useState(false)
+  const [maskRules] = useMaskRules()
   const [folderPattern, setFolderPattern] = useState('{table}')
   const [filePattern, setFilePattern] = useState('{database}_{date}')
   const [jobId, setJobId] = useState<string>()
@@ -405,7 +408,7 @@ export function ExportDialog({ items, onClose }: { items: DbObject[]; onClose: (
       : (await call<string[]>('job.open', { title: 'Choose a folder for the exported files', buttonLabel: 'Export here', properties: ['openDirectory', 'createDirectory'] }))[0]
     if (!target) return
     const sql = Object.fromEntries(checked.map((o) => [keyOf(o), flags(o)]))
-    try { setJobId(await call<string>('export.run', sessionId, { items: checked, format, target, pattern: folderPattern, csv, pretty, sql, gzip })) } catch (e) { fail(e) }
+    try { setJobId(await call<string>('export.run', sessionId, { items: checked, format, target, pattern: folderPattern, csv, pretty, sql, gzip, mask: masking ? maskRules : undefined })) } catch (e) { fail(e) }
   }
 
   return (
@@ -491,6 +494,7 @@ export function ExportDialog({ items, onClose }: { items: DbObject[]; onClose: (
               <span className="muted ellipsis mono" style={{ fontSize: 'var(--fs-sm)' }}>{expandPattern(pattern, tokens)}{ext}{isSql ? '' : ' · one file per item in the chosen folder'}</span>
             </div>
           </div>
+          <MaskingOptions on={masking} setOn={setMasking} />
         </div>
       </div>
     </Modal>
@@ -502,13 +506,15 @@ export function ExportResultDialog({ title, columns, rows, table, onClose }: { t
   const [csv, setCsv] = useState<CsvOut>(CSV_DEFAULTS)
   const [pretty, setPretty] = useState(true)
   const [tbl, setTbl] = useState(table ?? 'query_result')
+  const [masking, setMasking] = useState(false)
+  const [maskRules] = useMaskRules()
   const [busy, setBusy] = useState(false)
   const run = async (): Promise<void> => {
     const path = await call<string | undefined>('job.save', { title: 'Export result', defaultPath: `${expandPattern(title, {})}.${exportExt(format)}`, filters: [{ name: EXPORT_FORMATS.find((f) => f[0] === format)![1], extensions: [exportExt(format)] }] })
     if (!path) return
     setBusy(true)
     try {
-      await call('export.rows', { path, format, columns, rows, table: tbl.trim() || 'query_result', dialect: ws().dialect ?? 'postgres', csv, pretty })
+      await call('export.rows', { path, format, columns, rows, table: tbl.trim() || 'query_result', dialect: ws().dialect ?? 'postgres', csv, pretty, mask: masking ? maskRules : undefined })
       toast(`Exported ${rows.length} row${rows.length === 1 ? '' : 's'} to ${path}`, 'success')
       onClose()
     } catch (e) { fail(e) } finally { setBusy(false) }
@@ -525,6 +531,7 @@ export function ExportResultDialog({ title, columns, rows, table, onClose }: { t
       {format === 'json' && <label className="check"><input type="checkbox" checked={pretty} onChange={(e) => setPretty(e.target.checked)} /> Pretty-print (indented)</label>}
       {format === 'sql' && <div className="field"><label htmlFor="ie-r-table">Table name</label><input id="ie-r-table" className="input mono" value={tbl} onChange={(e) => setTbl(e.target.value)} /></div>}
       {format === 'xlsx' && <div className="muted">A single .xlsx workbook with the header row in bold.</div>}
+      <MaskingOptions on={masking} setOn={setMasking} columns={columns} />
     </Modal>
   )
 }
