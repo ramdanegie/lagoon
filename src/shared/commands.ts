@@ -12,6 +12,7 @@ export const COMMANDS: Command[] = [
   { id: 'file.exportTables', label: 'Export Tables…', menu: 'File', accel: 'CmdOrCtrl+Shift+E', sep: true },
   { id: 'file.importCsv', label: 'Import from CSV…', menu: 'File' },
   { id: 'file.importJson', label: 'Import from JSON…', menu: 'File' },
+  { id: 'file.importExcel', label: 'Import from Excel…', menu: 'File' },
   { id: 'file.importSql', label: 'Import SQL Dump…', menu: 'File' },
   { id: 'file.closeTab', label: 'Close Tab', menu: 'File', accel: 'CmdOrCtrl+W', sep: true },
 

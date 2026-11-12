@@ -57,6 +57,36 @@ try {
   assert.equal(await w.getByRole('tab', { name: /report\.sql/ }).count(), 1)
   step('opening the same file again focuses its tab')
 
+  // Excel import: pick the sheet, create a new table; dates and formulas arrive as plain values
+  const { DatabaseSync } = await import('node:sqlite')
+  const ExcelJS = (await import('exceljs')).default
+  const xlsx = join(dir, 'people.xlsx')
+  const wb = new ExcelJS.Workbook()
+  wb.addWorksheet('Summary').addRow(['ignore me'])
+  const sh = wb.addWorksheet('People')
+  sh.addRow(['name', 'age', 'joined', 'next'])
+  sh.addRow(['Ann', 31, new Date(Date.UTC(2024, 0, 2)), { formula: 'B2+1', result: 32 }])
+  sh.addRow(['Bob', 45, new Date(Date.UTC(2023, 5, 9, 8, 30)), { formula: 'B3+1', result: 46 }])
+  await wb.xlsx.writeFile(xlsx)
+  await ea.evaluate(({ dialog }, f) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [f] }) }, xlsx)
+  await ea.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((x) => x.webContents.send('command', 'file.importExcel')))
+  const dlg = w.getByRole('dialog')
+  await dlg.getByRole('button', { name: 'Choose file…' }).click()
+  await dlg.getByLabel('Sheet').selectOption('People')
+  await dlg.getByText('Ann', { exact: true }).first().waitFor()
+  await dlg.getByLabel('Table', { exact: true }).selectOption('__new')
+  await w.screenshot({ path: join(app, 'test/e2e/.shots/S53-import-excel.png') })
+  await dlg.getByRole('button', { name: 'Import', exact: true }).click()
+  await dlg.waitFor({ state: 'detached' })
+  const lite = new DatabaseSync(sqlite)
+  try {
+    assert.deepEqual(lite.prepare('select * from people order by name').all().map((r) => ({ ...r })), [
+      { name: 'Ann', age: 31, joined: '2024-01-02', next: 32 },
+      { name: 'Bob', age: 45, joined: '2023-06-09 08:30:00', next: 46 }
+    ])
+  } finally { lite.exec('drop table if exists people'); lite.close() }
+  step('Excel import: chosen sheet into a new table, dates and formula results as values')
+
   // connections from other apps (sample files; real app folders are never read here)
   const ncx = join(dir, 'export.ncx')
   writeFileSync(ncx, '<?xml version="1.0"?><Connections Ver="1.5"><Connection ConnectionName="From Navicat" ConnType="MYSQL" Host="127.0.0.1" Port="33100" UserName="root" Password="" SSH="false"/><Connection ConnectionName="Old SQL Server" ConnType="SQLSERVER" Host="x"/></Connections>')

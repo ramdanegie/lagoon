@@ -91,7 +91,7 @@ function Choice({ id, label, value, options, custom, onChange }: { id: string; l
   )
 }
 
-type Preview = { columns: string[]; rows: unknown[][] } & { text?: string }
+type Preview = { columns: string[]; rows: unknown[][]; sheets?: string[] } & { text?: string }
 const MODES: [Conflict, string][] = [
   ['stop', 'Append: insert rows, stop on a duplicate key'],
   ['skip', 'Skip existing: insert only rows with new keys'],
@@ -104,7 +104,7 @@ const MODES: [Conflict, string][] = [
 type Over = Record<number, { dest?: string | null; type?: string }>
 
 // ---------- import ----------
-export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 'sql'; table?: DbObject; onClose: () => void }): ReactNode {
+export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 'sql' | 'xlsx'; table?: DbObject; onClose: () => void }): ReactNode {
   const sessionId = useWs((s) => s.sessionId)
   const dialect = useWs((s) => s.dialect) ?? 'postgres'
   const curSchema = useWs((s) => s.schema)
@@ -116,6 +116,7 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
   const [delimiter, setDelimiter] = useState(',')
   const [quote, setQuote] = useState('"')
   const [header, setHeader] = useState(true)
+  const [sheet, setSheet] = useState('')
   const [preview, setPreview] = useState<Preview>()
   const [err, setErr] = useState('')
   const [dest, setDest] = useState<'existing' | 'new'>(table || tables.length ? 'existing' : 'new')
@@ -132,17 +133,17 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
   const job = useJob(jobId)
 
   useEffect(() => {
-    if (path) call<Preview>('import.preview', { kind, path, encoding, delimiter, quote, header }).then((p) => { setErr(''); setPreview(p) }, (e) => { setPreview(undefined); setErr(errText(e)) })
-  }, [kind, path, encoding, delimiter, quote, header])
+    if (path) call<Preview>('import.preview', { kind, path, encoding, delimiter, quote, header, sheet }).then((p) => { setErr(''); setPreview(p) }, (e) => { setPreview(undefined); setErr(errText(e)) })
+  }, [kind, path, encoding, delimiter, quote, header, sheet])
   useEffect(() => {
     if (dest === 'existing' && target && sessionId && schema !== undefined) call<Column[]>('db.columns', sessionId, schema, target).then((c) => setDestCols(c.filter((x) => x.extra !== 'generated')), fail)
   }, [dest, target, sessionId, schema])
   useEffect(() => { if (job?.state === 'done') onClose() }, [job?.state])
 
   const pick = async (): Promise<void> => {
-    const ext = kind === 'csv' ? ['csv', 'tsv', 'txt'] : kind === 'json' ? ['json', 'ndjson', 'jsonl'] : ['sql', 'txt']
-    const [f] = await call<string[]>('job.open', { properties: ['openFile'], filters: [{ name: kind.toUpperCase(), extensions: ext }, { name: 'All files', extensions: ['*'] }] })
-    if (f) { setPath(f); setNewName(baseName(f)); setOver({}) }
+    const ext = kind === 'csv' ? ['csv', 'tsv', 'txt'] : kind === 'json' ? ['json', 'ndjson', 'jsonl'] : kind === 'xlsx' ? ['xlsx'] : ['sql', 'txt']
+    const [f] = await call<string[]>('job.open', { properties: ['openFile'], filters: [{ name: kind === 'xlsx' ? 'Excel' : kind.toUpperCase(), extensions: ext }, { name: 'All files', extensions: ['*'] }] })
+    if (f) { setPath(f); setNewName(baseName(f)); setOver({}); setSheet('') }
   }
 
   const src = preview?.columns ?? []
@@ -177,11 +178,11 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
     const summary = kind === 'sql' ? [`-- Run every statement in ${file}`] : [...(create ? [`CREATE TABLE ${t} (…)`] : []), ...(mode === 'truncate' ? [`DELETE FROM ${t}`] : []), write]
     if (!(await guard(summary))) return
     try {
-      setJobId(await call<string>('import.run', sessionId, { kind, path, encoding, delimiter, quote, header, schema, table: tableName, create, map, conflict: mode, keys: wantKeys ? keys : undefined }))
+      setJobId(await call<string>('import.run', sessionId, { kind, path, encoding, delimiter, quote, header, sheet, schema, table: tableName, create, map, conflict: mode, keys: wantKeys ? keys : undefined }))
     } catch (e) { fail(e) }
   }
 
-  const title = kind === 'sql' ? 'Import SQL dump' : `Import ${kind.toUpperCase()}`
+  const title = kind === 'sql' ? 'Import SQL dump' : kind === 'xlsx' ? 'Import Excel' : `Import ${kind.toUpperCase()}`
   return (
     <Modal
       title={title}
@@ -214,7 +215,18 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
         <div className={kind === 'sql' ? '' : 'ie-cols'}>
           <fieldset className="fieldset">
             <legend>File</legend>
-            <Choice id="ie-enc" label="Encoding" value={encoding} options={ENCODINGS} onChange={setEncoding} />
+            {kind !== 'xlsx' && <Choice id="ie-enc" label="Encoding" value={encoding} options={ENCODINGS} onChange={setEncoding} />}
+            {kind === 'xlsx' && (
+              <>
+                <div className="field">
+                  <label htmlFor="ie-sheet">Sheet</label>
+                  <select id="ie-sheet" className="select" value={sheet || preview?.sheets?.[0] || ''} onChange={(e) => { setSheet(e.target.value); setOver({}) }}>
+                    {(preview?.sheets ?? []).map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div className="field"><span /><label className="check"><input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} /> First row is a header</label></div>
+              </>
+            )}
             {kind === 'csv' && (
               <>
                 <Choice id="ie-delim" label="Delimiter" value={delimiter} options={[[',', 'Comma ( , )'], [';', 'Semicolon ( ; )'], ['\t', 'Tab']]} custom onChange={setDelimiter} />

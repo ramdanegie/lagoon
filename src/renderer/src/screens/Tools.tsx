@@ -19,7 +19,7 @@ const StructureSync = lazy(() => import('./StructureSync').then((m) => ({ defaul
 const DataGenerator = lazy(() => import('./DataGenerator').then((m) => ({ default: m.DataGenerator })))
 const DataDictionary = lazy(() => import('./DataDictionary').then((m) => ({ default: m.DataDictionary })))
 
-type Dlg = { kind: 'transfer'; items?: DbObject[] } | { kind: 'dataSync' } | { kind: 'structSync' } | { kind: 'generate'; table?: DbObject } | { kind: 'dictionary' } | { kind: 'process' } | { kind: 'plugins' } | { kind: 'import'; format: 'csv' | 'json' | 'sql'; table?: DbObject } | { kind: 'export'; items: DbObject[] } | { kind: 'backup' } | { kind: 'restore' } | null
+type Dlg = { kind: 'transfer'; items?: DbObject[] } | { kind: 'dataSync' } | { kind: 'structSync' } | { kind: 'generate'; table?: DbObject } | { kind: 'dictionary' } | { kind: 'process' } | { kind: 'plugins' } | { kind: 'import'; format: 'csv' | 'json' | 'sql' | 'xlsx'; table?: DbObject } | { kind: 'export'; items: DbObject[] } | { kind: 'backup' } | { kind: 'restore' } | null
 
 /** Opens tool windows. Other screens open them through `openTool` (window event) so they stay decoupled. */
 export function openTool(detail: Exclude<Dlg, null>): void {
@@ -54,6 +54,7 @@ export function Tools(): ReactNode {
     'file.exportTables': need(sql, 'Export', () => setDlg({ kind: 'export', items: ws().selectedObjects.filter((o) => o.kind === 'table' || o.kind === 'view') })),
     'file.importCsv': need(sql, 'Import', () => setDlg({ kind: 'import', format: 'csv' })),
     'file.importJson': need(sql, 'Import', () => setDlg({ kind: 'import', format: 'json' })),
+    'file.importExcel': need(sql, 'Import', () => setDlg({ kind: 'import', format: 'xlsx' })),
     'file.importSql': need(sql, 'Import', () => setDlg({ kind: 'import', format: 'sql' })),
     'file.backup': () => setDlg({ kind: 'backup' }),
     'file.restore': () => setDlg({ kind: 'restore' })
@@ -82,7 +83,7 @@ export function Tools(): ReactNode {
             { label: 'Generate Test Data…', disabled: !sql, onClick: actions['tools.generate'] },
             { label: 'Data Dictionary…', disabled: !sql, onClick: actions['tools.dictionary'] },
             { sep: true },
-            { label: 'Import', disabled: !sql, submenu: [{ label: 'From CSV…', onClick: actions['file.importCsv'] }, { label: 'From JSON…', onClick: actions['file.importJson'] }, { label: 'From SQL Dump…', onClick: actions['file.importSql'] }] },
+            { label: 'Import', disabled: !sql, submenu: [{ label: 'From CSV…', onClick: actions['file.importCsv'] }, { label: 'From JSON…', onClick: actions['file.importJson'] }, { label: 'From Excel…', onClick: actions['file.importExcel'] }, { label: 'From SQL Dump…', onClick: actions['file.importSql'] }] },
             { label: 'Export Tables…', disabled: !sql, onClick: actions['file.exportTables'] },
             { label: 'Backup Database…', onClick: actions['file.backup'] },
             { label: 'Restore Database…', onClick: actions['file.restore'] },

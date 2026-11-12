@@ -70,8 +70,9 @@ const decode = (path: string, encoding: string): string => new TextDecoder(encod
 
 // ---------- import ----------
 interface ImportOpts {
-  kind: 'csv' | 'json' | 'sql'
+  kind: 'csv' | 'json' | 'sql' | 'xlsx'
   path: string
+  sheet?: string // xlsx: worksheet name; default the first
   encoding: string
   delimiter?: string
   quote?: string
@@ -86,8 +87,40 @@ interface ImportOpts {
 
 const BATCH = 500
 
-/** Source rows as arrays plus their column names (CSV header or JSON keys). */
-function readSource(o: Pick<ImportOpts, 'kind' | 'path' | 'encoding' | 'delimiter' | 'quote' | 'header'>, limit?: number): { columns: string[]; rows: unknown[][] } {
+/** An Excel cell as a plain value: formulas give their result, rich text its text, dates an ISO-like string. */
+function excelValue(v: unknown): unknown {
+  if (v === null || v === undefined) return null
+  if (v instanceof Date) {
+    const iso = v.toISOString()
+    return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 19).replace('T', ' ')
+  }
+  if (typeof v !== 'object') return v
+  const o = v as { result?: unknown; richText?: { text: string }[]; text?: unknown; error?: unknown; formula?: unknown }
+  if ('formula' in o || 'result' in o) return excelValue(o.result)
+  if (o.richText) return o.richText.map((t) => t.text).join('')
+  if ('text' in o) return String(o.text)
+  if ('error' in o) return null
+  return JSON.stringify(v)
+}
+
+async function readExcel(o: Pick<ImportOpts, 'path' | 'sheet' | 'header'>, limit?: number): Promise<{ columns: string[]; rows: unknown[][]; sheets: string[] }> {
+  const ExcelJS = (await import('exceljs')).default
+  const wb = new ExcelJS.Workbook()
+  await wb.xlsx.readFile(checkPath(o.path))
+  const ws = (o.sheet && wb.getWorksheet(o.sheet)) || wb.worksheets[0]
+  if (!ws) throw new Error('This workbook has no sheets.')
+  const all: unknown[][] = []
+  ws.eachRow((row) => { all.push((row.values as unknown[]).slice(1).map(excelValue)) }) // values are 1-based
+  const width = Math.max(0, ...all.slice(0, 1000).map((r) => r.length))
+  const pad = (r: unknown[]): unknown[] => Array.from({ length: width }, (_x, i) => r[i] ?? null)
+  const columns = uniqueNames(o.header !== false && all[0] ? pad(all[0]).map((v, i) => (v === null || v === '' ? `column_${i + 1}` : String(v))) : Array.from({ length: width }, (_x, i) => `column_${i + 1}`))
+  const rows = (o.header !== false ? all.slice(1) : all).map(pad)
+  return { columns, rows: limit ? rows.slice(0, limit) : rows, sheets: wb.worksheets.map((w) => w.name) }
+}
+
+/** Source rows as arrays plus their column names (CSV header, JSON keys or the sheet's first row). */
+async function readSource(o: Pick<ImportOpts, 'kind' | 'path' | 'encoding' | 'delimiter' | 'quote' | 'header' | 'sheet'>, limit?: number): Promise<{ columns: string[]; rows: unknown[][]; sheets?: string[] }> {
+  if (o.kind === 'xlsx') return readExcel(o, limit)
   const text = decode(o.path, o.encoding)
   if (o.kind === 'json') {
     const recs = parseJsonRecords(text)
@@ -103,7 +136,7 @@ function readSource(o: Pick<ImportOpts, 'kind' | 'path' | 'encoding' | 'delimite
 }
 
 async function importRows(j: JobCtl, d: SqlDriver, o: ImportOpts): Promise<{ message: string }> {
-  const { rows } = readSource(o)
+  const { rows } = await readSource(o)
   const pairs = o.map.flatMap((dst, i) => (dst ? [[i, dst] as const] : []))
   if (!pairs.length) throw new Error('No columns are selected for import.')
   const cols = pairs.map((p) => p[1])

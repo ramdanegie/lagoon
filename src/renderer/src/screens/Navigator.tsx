@@ -223,7 +223,7 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
       ...(sql ? [
         { sep: true },
         { label: 'Export…', onClick: withFocus(() => openTool({ kind: 'export', items: many })) },
-        ...(isTable ? [{ label: 'Import', submenu: (['csv', 'json', 'sql'] as const).map((f) => ({ label: `From ${f.toUpperCase()}…`, onClick: withFocus(() => openTool({ kind: 'import', format: f, table: o })) })) }] : []),
+        ...(isTable ? [{ label: 'Import', submenu: (['csv', 'json', 'xlsx', 'sql'] as const).map((f) => ({ label: `From ${f === 'xlsx' ? 'Excel' : f.toUpperCase()}…`, onClick: withFocus(() => openTool({ kind: 'import', format: f, table: o })) })) }] : []),
         ...(isTable ? [{ label: 'Transfer to Another Connection…', onClick: withFocus(() => openTool({ kind: 'transfer', items: many.filter((x) => x.kind === 'table') })) }, { label: 'Generate Test Data…', onClick: withFocus(() => openTool({ kind: 'generate', table: o })) }] : [])
       ] : []),
       { sep: true },
