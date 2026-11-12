@@ -1,7 +1,7 @@
 // One window, several connections and databases: tabs from different databases side by side (like an object explorer).
 // Needs ./test/e2e/fixtures.sh up and `npx electron-vite build`.
 import { _electron as electron } from 'playwright-core'
-import { mkdtempSync, rmSync, mkdirSync, readFileSync } from 'fs'
+import { mkdtempSync, rmSync, mkdirSync, readFileSync, readdirSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import assert from 'assert/strict'
@@ -223,6 +223,40 @@ try {
   await w.getByRole('tab', { name: /products/ }).waitFor({ state: 'detached' })
   assert.ok(await w.getByRole('tab', { name: /customers/ }).count())
   step('disconnecting MySQL closed only its tabs')
+
+  // automation: an export task and a failing SQL task, run by hand; results land in the history
+  const auto = mkdtempSync(join(tmpdir(), 'lg-auto-'))
+  await ea.evaluate(({ dialog, Notification }, dir) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] }); Notification.isSupported = () => false }, auto)
+  await w.getByRole('button', { name: 'Tools' }).click()
+  await w.getByRole('menuitem', { name: 'Automation…' }).click()
+  const ad = w.getByRole('dialog', { name: 'Automation' })
+  await ad.getByRole('button', { name: 'New task' }).click()
+  await ad.getByLabel('Connection').selectOption({ label: 'Postgres local' })
+  await ad.getByLabel('Database', { exact: true }).fill('shop')
+  await ad.getByLabel('Tables').fill('customers')
+  await ad.getByRole('button', { name: 'Choose…' }).click()
+  await ad.getByText(auto).waitFor()
+  await ad.getByRole('button', { name: 'Save' }).click()
+  await ad.getByRole('option', { name: /Nightly export/ }).getByText(/Daily at 02:00 · next/).waitFor()
+  await ad.getByRole('button', { name: 'Run now' }).click()
+  await ad.getByRole('cell', { name: /✓ Exported 1 file \(750 rows\)/ }).waitFor({ timeout: 30000 })
+  const files = readdirSync(auto)
+  assert.equal(files.length, 1); assert.match(files[0], /^customers_\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.csv$/)
+  assert.equal(readFileSync(join(auto, files[0]), 'utf8').trim().split('\n').length, 751)
+  await ad.getByRole('button', { name: 'New task' }).click()
+  await ad.getByLabel('Name', { exact: true }).fill('Broken query')
+  await ad.getByLabel('Connection').selectOption({ label: 'Postgres local' })
+  await ad.getByRole('tab', { name: 'Run SQL' }).click()
+  await ad.getByLabel('SQL').fill('select * from no_such_table;')
+  await ad.getByLabel('Runs').selectOption('manual')
+  await ad.getByRole('button', { name: 'Save' }).click()
+  await ad.getByRole('option', { name: /Broken query/ }).getByText('Only when run by hand').waitFor()
+  await ad.getByRole('button', { name: 'Run now' }).click()
+  await ad.getByRole('cell', { name: /✗ .*no_such_table/ }).waitFor({ timeout: 30000 })
+  await w.screenshot({ path: join(shots, 'S59-automation.png') })
+  await ad.getByRole('button', { name: 'Close' }).last().click()
+  rmSync(auto, { recursive: true, force: true })
+  step('automation: export task writes a dated file; a failing task shows its error in the history')
 
   // Touch ID unlock (system prompt mocked): cancelled keeps the lock, success opens it
   await ea.evaluate(({ systemPreferences }) => { systemPreferences.canPromptTouchID = () => true; systemPreferences.promptTouchID = async () => { throw new Error('cancelled') } })

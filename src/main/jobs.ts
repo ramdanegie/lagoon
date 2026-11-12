@@ -4,7 +4,7 @@ import { createWriteStream, readFileSync, mkdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { createGzip } from 'zlib'
 import { pipeline } from 'stream/promises'
-import type { Column, DbObject, Dialect, JobProgress } from '@shared/types'
+import type { Column, Connection, DbObject, Dialect, JobProgress } from '@shared/types'
 import { selectSql, createTableSql, isNumericType, qt, type CellValue } from '@shared/sqlgen'
 import { splitStatements } from '@shared/split'
 import { parseDelimited, parseJsonRecords, jsonColumns, uniqueNames, csvRow, typedValue, importValue, exportValue, insertManySql, importBatchSql, expandPattern, markupText, exportExt, EXPORT_FORMATS, type Conflict, type CsvOut, type ExportFormat } from '@shared/importexport'
@@ -52,6 +52,8 @@ export function startJob(sender: WebContents, kind: string, title: string, run: 
 // Paths the user picked in a native dialog. Jobs only read/write these (a compromised renderer can't aim them elsewhere).
 const approved = new Set<string>()
 export const isApproved = (p: string): boolean => approved.has(p)
+/** For main-side callers only: a path the user picked earlier (saved automation folders). */
+export const approve = (p: string): void => void approved.add(p)
 export function checkPath(p: string): string {
   if (!approved.has(p)) throw new Error('Choose the file with the file picker first.')
   return p
@@ -287,7 +289,7 @@ async function writeXlsx(path: string, sheet: string, names: string[], numeric: 
   }
 }
 
-interface ExportOpts {
+export interface ExportOpts {
   items: DbObject[]
   format: ExportFormat
   target: string // folder (one file per item) or file (sql)
@@ -302,8 +304,7 @@ interface ExportOpts {
 /** Rows rewritten by the masking rules on their way into the file; null when no rule applies. */
 async function* maskPages(pages: Pages, m: (row: unknown[]) => unknown[]): Pages { for await (const rows of pages) yield rows.map(m) }
 
-async function exportItems(j: JobCtl, sessionId: string, d: SqlDriver, o: ExportOpts): Promise<{ message: string; output: string }> {
-  const conn = session(sessionId).conn
+export async function exportItems(j: JobCtl, conn: Connection, d: SqlDriver, o: ExportOpts): Promise<{ message: string; output: string }> {
   const database = d.currentDatabase()
   const estimates: (number | null)[] = []
   const salt = crypto.randomUUID() // pseudonyms match across tables of this export only
@@ -413,7 +414,7 @@ register({
     if (!o.items.length) throw new Error('Select at least one table or view.')
     return startJob(c.sender, 'export', `Export ${o.items.length === 1 ? o.items[0].name : `${o.items.length} items`} (${EXPORT_FORMATS.find((f) => f[0] === o.format)?.[1] ?? o.format})`, async (j) => {
       const { d, close } = await jobDriver(sessionId)
-      try { return await exportItems(j, sessionId, d, o) } finally { await close() }
+      try { return await exportItems(j, session(sessionId).conn, d, o) } finally { await close() }
     })
   },
   'export.rows': (_c, o: Parameters<typeof exportRows>[0]) => exportRows(o)

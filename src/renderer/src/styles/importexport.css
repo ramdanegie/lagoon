@@ -32,3 +32,13 @@
 .ie-conns .conn-item { margin: 0; }
 .ie-conns .conn-item .drv { width: 28px; height: 28px; }
 .ie-log { height: 240px; margin: 0; }
+
+/* ---------- automation ---------- */
+.auto-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: var(--sp-5); min-height: 360px; }
+.auto-list { border: 1px solid var(--border); border-radius: var(--r-md); overflow: auto; max-height: 420px; }
+.auto-item { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); cursor: default; font-size: var(--fs-sm); min-width: 0; }
+.auto-item.on { background: var(--bg-selected-soft); }
+.auto-item:hover:not(.on) { background: var(--bg-hover); }
+.auto-edit { gap: var(--sp-3); min-width: 0; }
+.auto-history { max-height: 200px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); margin-top: var(--sp-2); }
+.ok-text { color: var(--success); }

@@ -43,7 +43,7 @@ const known = new Set<string>() // dump binaries found by detection
 const version = (p: string): Promise<string> =>
   new Promise((r) => execFile(p, ['--version'], { timeout: 5000 }, (e, out) => r(e ? '' : String(out).trim())))
 
-async function findTools(f: Family): Promise<{ path: string; version: string }[]> {
+export async function findTools(f: Family): Promise<{ path: string; version: string }[]> {
   const seen = new Set<string>()
   const out: { path: string; version: string }[] = []
   for (const dir of searchDirs()) {
@@ -82,10 +82,10 @@ const PG_SSL: Record<string, string> = { DISABLED: 'disable', ALLOW: 'allow', PR
 
 const size = (n: number): string => (n < 1048576 ? `${Math.ceil(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`)
 
-interface ToolRun { connectionId: string; database: string; tool: string; options: string; file: string; gzip?: boolean; asked?: Asked }
+export interface ToolRun { connectionId: string; database: string; tool: string; options: string; file: string; gzip?: boolean; asked?: Asked }
 
 /** Spawn the tool with the password in env, stream its output to the job log, honour Stop. */
-async function runTool(j: JobCtl, o: ToolRun, mode: 'backup' | 'restore'): Promise<{ message: string; output?: string }> {
+export async function runTool(j: JobCtl, o: ToolRun, mode: 'backup' | 'restore'): Promise<{ message: string; output?: string }> {
   const c = getConnection(o.connectionId)
   const f = familyOf(c)
   const pw = passwordOf(c, o.asked?.password)

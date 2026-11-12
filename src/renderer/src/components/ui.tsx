@@ -1,10 +1,11 @@
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
 import { useToasts } from '../lib/api'
 
 // ---------- Modal ----------
 export function Modal(props: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; width?: number; className?: string }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
+  const titleId = useId()
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
     const first = ref.current?.querySelector<HTMLElement>('[autofocus], input, select, textarea, button')
@@ -19,11 +20,12 @@ export function Modal(props: { title: ReactNode; onClose: () => void; children: 
         style={{ width: props.width }}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={props.title !== null ? titleId : undefined}
         onKeyDown={(e) => {
           if (e.key === 'Escape') { e.stopPropagation(); props.onClose() }
         }}
       >
-        {props.title !== null && <div className="modal-head">{props.title}</div>}
+        {props.title !== null && <div className="modal-head" id={titleId}>{props.title}</div>}
         <div className="modal-body">{props.children}</div>
         {props.footer && <div className="modal-foot">{props.footer}</div>}
       </div>

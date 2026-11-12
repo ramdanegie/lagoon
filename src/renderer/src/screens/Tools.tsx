@@ -18,8 +18,9 @@ const DataSync = lazy(() => import('./DataSync').then((m) => ({ default: m.DataS
 const StructureSync = lazy(() => import('./StructureSync').then((m) => ({ default: m.StructureSync })))
 const DataGenerator = lazy(() => import('./DataGenerator').then((m) => ({ default: m.DataGenerator })))
 const DataDictionary = lazy(() => import('./DataDictionary').then((m) => ({ default: m.DataDictionary })))
+const AutomationDialog = lazy(() => import('./Automation').then((m) => ({ default: m.AutomationDialog })))
 
-type Dlg = { kind: 'transfer'; items?: DbObject[] } | { kind: 'dataSync' } | { kind: 'structSync' } | { kind: 'generate'; table?: DbObject } | { kind: 'dictionary' } | { kind: 'process' } | { kind: 'plugins' } | { kind: 'import'; format: 'csv' | 'json' | 'sql' | 'xlsx'; table?: DbObject } | { kind: 'export'; items: DbObject[] } | { kind: 'backup' } | { kind: 'restore' } | null
+type Dlg = { kind: 'transfer'; items?: DbObject[] } | { kind: 'dataSync' } | { kind: 'structSync' } | { kind: 'generate'; table?: DbObject } | { kind: 'dictionary' } | { kind: 'process' } | { kind: 'plugins' } | { kind: 'import'; format: 'csv' | 'json' | 'sql' | 'xlsx'; table?: DbObject } | { kind: 'export'; items: DbObject[] } | { kind: 'backup' } | { kind: 'restore' } | { kind: 'automation' } | null
 
 /** Opens tool windows. Other screens open them through `openTool` (window event) so they stay decoupled. */
 export function openTool(detail: Exclude<Dlg, null>): void {
@@ -46,6 +47,7 @@ export function Tools(): ReactNode {
     'tools.metrics': need(sql, 'Metrics board', () => openTab({ kind: 'metrics', title: 'Metrics' })),
     'tools.search': need(sql, 'Search in database', () => setWs({ sidebarSearch: true, left: true })),
     'tools.plugins': () => setDlg({ kind: 'plugins' }),
+    'tools.automation': () => setDlg({ kind: 'automation' }),
     'tools.transfer': need(sql, 'Data transfer', () => setDlg({ kind: 'transfer', items: ws().selectedObjects.filter((o) => o.kind === 'table') })),
     'tools.dataSync': need(sql, 'Data synchronization', () => setDlg({ kind: 'dataSync' })),
     'tools.structSync': need(sql && ws().dialect !== 'sqlite', 'Structure synchronization', () => setDlg({ kind: 'structSync' })),
@@ -82,6 +84,7 @@ export function Tools(): ReactNode {
             { label: 'Structure Synchronization…', disabled: !sql || conn?.driver === 'sqlite', onClick: actions['tools.structSync'] },
             { label: 'Generate Test Data…', disabled: !sql, onClick: actions['tools.generate'] },
             { label: 'Data Dictionary…', disabled: !sql, onClick: actions['tools.dictionary'] },
+            { label: 'Automation…', onClick: actions['tools.automation'] },
             { sep: true },
             { label: 'Import', disabled: !sql, submenu: [{ label: 'From CSV…', onClick: actions['file.importCsv'] }, { label: 'From JSON…', onClick: actions['file.importJson'] }, { label: 'From Excel…', onClick: actions['file.importExcel'] }, { label: 'From SQL Dump…', onClick: actions['file.importSql'] }] },
             { label: 'Export Tables…', disabled: !sql, onClick: actions['file.exportTables'] },
@@ -107,6 +110,7 @@ export function Tools(): ReactNode {
       {dlg?.kind === 'structSync' && <StructureSync onClose={() => setDlg(null)} />}
       {dlg?.kind === 'generate' && <DataGenerator table={dlg.table} onClose={() => setDlg(null)} />}
       {dlg?.kind === 'dictionary' && <DataDictionary onClose={() => setDlg(null)} />}
+      {dlg?.kind === 'automation' && <AutomationDialog onClose={() => setDlg(null)} />}
       </Suspense>
     </>
   )

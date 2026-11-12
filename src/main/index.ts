@@ -17,6 +17,7 @@ import './transfer'
 import './datasync'
 import './structsync'
 import './redislive'
+import './automation'
 import './generate'
 
 const isMac = process.platform === 'darwin'
