@@ -2,6 +2,13 @@ import pg from 'pg'
 import type { Column, DbObject, ForeignKey, Index, Result, Trigger, DbUser, TableStat } from '@shared/types'
 import { type ConnectParams, type SqlDriver, rowsOut } from './types'
 
+/** A pg_catalog column only newer servers have (attidentity/relispartition 10, prokind 11, attgenerated 12) as text, NULL on older ones:
+ *  read through a whole-row to_json so the query still parses there. */
+export const pgOpt = (row: string, col: string): string => `(to_json(${row})->>'${col}')`
+/** pg_proc kind of row `p`: f function, p procedure, a aggregate, w window. Before 11 it came from proisagg/proiswindow. */
+// Filter by namespace with `pronamespace = (SELECT oid …)`, not a join: the cheap restriction then runs before to_json.
+export const PG_PROKIND = `COALESCE(${pgOpt('p', 'prokind')}, CASE WHEN ${pgOpt('p', 'proisagg')} = 'true' THEN 'a' WHEN ${pgOpt('p', 'proiswindow')} = 'true' THEN 'w' ELSE 'f' END)`
+
 const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
 
 const FK_ACT: Record<string, string> = { a: 'NO ACTION', r: 'RESTRICT', c: 'CASCADE', n: 'SET NULL', d: 'SET DEFAULT' }
@@ -95,8 +102,8 @@ export class PostgresDriver implements SqlDriver {
       `SELECT c.relname AS name, c.relkind AS kind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
        WHERE n.nspname = $1 AND c.relkind IN ('r','p','v','m','f','S') ORDER BY 1`, [schema])
     const fn = await this.rows<{ name: string; kind: string }>(
-      `SELECT p.proname AS name, p.prokind AS kind FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-       WHERE n.nspname = $1 AND p.prokind IN ('f','p') ORDER BY 1`, [schema])
+      `SELECT p.proname AS name, ${PG_PROKIND} AS kind FROM pg_proc p
+       WHERE p.pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1) AND ${PG_PROKIND} IN ('f','p') ORDER BY 1`, [schema])
     const k: Record<string, DbObject['kind']> = { r: 'table', p: 'table', f: 'table', v: 'view', m: 'matview', S: 'sequence' }
     return [
       ...rel.map((r) => ({ schema, name: r.name, kind: k[r.kind] })),
@@ -114,7 +121,7 @@ export class PostgresDriver implements SqlDriver {
       `SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type, NOT a.attnotnull AS nullable,
               pg_get_expr(d.adbin, d.adrelid) AS "default", a.attnum AS ordinal, col_description(c.oid, a.attnum) AS comment,
               COALESCE(a.attnum = ANY(i.indkey), false) AS pk,
-              CASE WHEN a.attidentity <> '' THEN 'identity' WHEN a.attgenerated <> '' THEN 'generated' END AS extra
+              CASE WHEN ${pgOpt('a', 'attidentity')} <> '' THEN 'identity' WHEN ${pgOpt('a', 'attgenerated')} <> '' THEN 'generated' END AS extra
        FROM pg_attribute a
        JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
        LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
@@ -192,8 +199,8 @@ export class PostgresDriver implements SqlDriver {
          CASE WHEN c.relkind <> 'v' THEN pg_table_size(c.oid) END AS data,
          CASE WHEN c.relkind <> 'v' THEN pg_indexes_size(c.oid) END AS idx,
          obj_description(c.oid, 'pg_class') AS comment
-       FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
-       WHERE ns.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND NOT c.relispartition
+       FROM pg_class c
+       WHERE c.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1) AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND ${pgOpt('c', 'relispartition')} IS DISTINCT FROM 'true'
        ORDER BY c.relname`, [schema])
     return r.map((x) => ({ name: x.name, kind: x.kind as TableStat['kind'], rows: n(x.n), data: n(x.data), index: n(x.idx), comment: x.comment }))
   }

@@ -6,6 +6,7 @@ import { nameMatcher, type NameMode } from '@shared/dictionary'
 import { register } from './rpc'
 import { sqlDriver } from './sessions'
 import type { SqlDriver } from './drivers/types'
+import { PG_PROKIND } from './drivers/postgres'
 
 interface Job { paused: boolean; stopped: boolean; wake?: () => void }
 const jobs = new Map<string, Job>()
@@ -46,8 +47,8 @@ async function structureSearch(d: SqlDriver, schema: string, text: string, mode:
       idx = await strRows(d, `SELECT tablename, indexname FROM pg_indexes WHERE schemaname = ${s}`)
       if (definitions) defs = await strRows(d, `SELECT viewname, 'view', definition FROM pg_views WHERE schemaname = ${s}
         UNION ALL SELECT matviewname, 'matview', definition FROM pg_matviews WHERE schemaname = ${s}
-        UNION ALL SELECT p.proname, CASE p.prokind WHEN 'p' THEN 'procedure' ELSE 'function' END, pg_get_functiondef(p.oid) FROM pg_proc p
-          JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = ${s} AND p.prokind IN ('f','p')`)
+        UNION ALL SELECT p.proname, CASE ${PG_PROKIND} WHEN 'p' THEN 'procedure' ELSE 'function' END, pg_get_functiondef(p.oid) FROM pg_proc p
+          WHERE p.pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = ${s}) AND ${PG_PROKIND} IN ('f','p')`)
     } else {
       idx = await strRows(d, `SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ${s}`)
       if (definitions) defs = await strRows(d, `SELECT TABLE_NAME, 'view', VIEW_DEFINITION FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ${s}

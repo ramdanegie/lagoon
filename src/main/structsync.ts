@@ -5,6 +5,7 @@ import { parseMysqlCreateTable, type SchemaModel, type STable, type SConstraint,
 import { register } from './rpc'
 import { openSession, closeSession, session, sqlDriver } from './sessions'
 import type { SqlDriver } from './drivers/types'
+import { pgOpt, PG_PROKIND } from './drivers/postgres'
 
 type Row = Record<string, unknown>
 const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v))
@@ -24,6 +25,8 @@ const PG_KIND: Record<string, ConsKind> = { p: 'pk', u: 'unique', c: 'check', x:
 
 /** Reads one schema. Runs on a private session: search_path is set to the schema so own objects come back unqualified. */
 export async function readPostgres(d: SqlDriver, schema: string): Promise<SchemaModel> {
+  const [[ver]] = (await d.query("SELECT current_setting('server_version_num')::int")).rows as [[number]]
+  if (ver < 100000) throw new Error('Structure sync needs PostgreSQL 10 or newer')
   const S = lit('postgres', schema)
   await d.query(`SET search_path TO ${qi('postgres', schema)}`)
   const noExt = (oid: string): string => `NOT EXISTS (SELECT 1 FROM pg_depend e WHERE e.objid = ${oid} AND e.deptype = 'e')`
@@ -34,7 +37,7 @@ export async function readPostgres(d: SqlDriver, schema: string): Promise<Schema
   const serialSeqs = new Set<string>()
   for (const r of await rows(d, `
     SELECT c.relname AS tbl, a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type, a.attnotnull AS notnull,
-      pg_get_expr(ad.adbin, ad.adrelid) AS dflt, col_description(c.oid, a.attnum) AS comment, a.attidentity AS ident, a.attgenerated AS gen,
+      pg_get_expr(ad.adbin, ad.adrelid) AS dflt, col_description(c.oid, a.attnum) AS comment, a.attidentity AS ident, ${pgOpt('a', 'attgenerated')} AS gen,
       CASE WHEN a.attcollation <> 0 AND a.attcollation <> t.typcollation THEN co.collname END AS coll,
       (SELECT s.relname FROM pg_depend dp JOIN pg_class s ON s.oid = dp.objid AND s.relkind = 'S'
         WHERE dp.refobjid = c.oid AND dp.refobjsubid = a.attnum AND dp.deptype = 'a' LIMIT 1) AS owned
@@ -83,8 +86,8 @@ export async function readPostgres(d: SqlDriver, schema: string): Promise<Schema
     .map((r) => ({ name: String(r.name), def: String(r.def).trim().replace(/;$/, ''), materialized: r.kind === 'm' }))
 
   const head = new RegExp(`^(CREATE OR REPLACE (?:FUNCTION|PROCEDURE) )${esc(qs)}\\.`)
-  const routines = (await rows(d, `SELECT p.proname AS name, p.prokind AS kind, pg_get_function_identity_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS result, pg_get_functiondef(p.oid) AS def
-    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = ${S} AND p.prokind IN ('f','p') AND ${noExt('p.oid')} ORDER BY 1, 3`))
+  const routines = (await rows(d, `SELECT p.proname AS name, ${PG_PROKIND} AS kind, pg_get_function_identity_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS result, pg_get_functiondef(p.oid) AS def
+    FROM pg_proc p WHERE p.pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = ${S}) AND ${PG_PROKIND} IN ('f','p') AND ${noExt('p.oid')} ORDER BY 1, 3`))
     .map((r) => ({ name: String(r.name), kind: (r.kind === 'p' ? 'procedure' : 'function') as 'function' | 'procedure', args: String(r.args), result: str(r.result), def: String(r.def).trim().replace(head, '$1') }))
 
   const triggers = (await rows(d, `SELECT c.relname AS tbl, t.tgname AS name, pg_get_triggerdef(t.oid) AS def FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace

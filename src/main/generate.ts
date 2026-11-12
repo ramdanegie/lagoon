@@ -6,6 +6,7 @@ import type { Dict, DictTable } from '@shared/dictionary'
 import { register } from './rpc'
 import { session, sqlDriver } from './sessions'
 import { startJob, jobDriver } from './jobs'
+import { PG_PROKIND } from './drivers/postgres'
 import type { SqlDriver } from './drivers/types'
 
 const rows = async (d: SqlDriver, sql: string): Promise<string[][]> => (await d.query(sql)).rows.map((r) => r.map((v) => (v == null ? '' : String(v))))
@@ -54,8 +55,8 @@ async function tableComments(d: SqlDriver, schema: string): Promise<Record<strin
 async function routines(d: SqlDriver, schema: string): Promise<Dict['routines']> {
   const s = lit(d.dialect, schema)
   if (d.dialect === 'postgres')
-    return (await rows(d, `SELECT p.proname, p.prokind, pg_get_function_identity_arguments(p.oid), COALESCE(pg_get_function_result(p.oid), '') FROM pg_proc p
-      JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = ${s} AND p.prokind IN ('f','p') ORDER BY 1, 3`))
+    return (await rows(d, `SELECT p.proname, ${PG_PROKIND}, pg_get_function_identity_arguments(p.oid), COALESCE(pg_get_function_result(p.oid), '') FROM pg_proc p
+      WHERE p.pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = ${s}) AND ${PG_PROKIND} IN ('f','p') ORDER BY 1, 3`))
       .map(([name, k, args, ret]) => ({ name, kind: k === 'p' ? 'procedure' : 'function', signature: `${name}(${args})${ret ? ` → ${ret}` : ''}` }))
   if (d.dialect === 'mysql')
     return (await rows(d, `SELECT r.ROUTINE_NAME, r.ROUTINE_TYPE, COALESCE(r.DTD_IDENTIFIER, ''),
