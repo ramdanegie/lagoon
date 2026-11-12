@@ -8,10 +8,11 @@ import { Grid, type GridColumn, type GridPending, type Sel } from '../components
 import { Icon } from '../components/Icon'
 import { Modal, confirmDialog, menuAt } from '../components/ui'
 import { CodeEditor } from './MongoQuery'
+import { MongoPipeline } from './MongoPipeline'
 import '../styles/nosql.css'
 
 const PAGE = 300
-type View = 'data' | 'json' | 'tree'
+type View = 'data' | 'json' | 'tree' | 'pipeline'
 interface Pending { sets: Map<number, Doc>; deleted: Set<number>; inserts: Doc[] }
 const EMPTY: Pending = { sets: new Map(), deleted: new Set(), inserts: [] }
 const idJson = (d: Doc): string => JSON.stringify(d._id)
@@ -188,7 +189,7 @@ export function MongoView({ tab }: { tab: Tab }): ReactNode {
   const from = docs.length ? skip + 1 : 0
   return (
     <div className="nosql">
-      {showFilter && (
+      {showFilter && view !== 'pipeline' && (
         <div className="filters">
           <div className="filter-row">
             <label htmlFor={`mf-${tab.id}`} className="muted">Filter</label>
@@ -220,10 +221,12 @@ export function MongoView({ tab }: { tab: Tab }): ReactNode {
       </div>
       {view === 'json' && <JsonView coll={coll} docs={docs} blocked={count > 0 || readOnly} onSaved={() => void load()} />}
       {view === 'tree' && <TreeView docs={docs} />}
+      <MongoPipeline coll={coll} visible={view === 'pipeline'} />
       <div className="bottombar" role="toolbar" aria-label="Collection">
         <div className="seg" role="group" aria-label="View">
-          {(['data', 'json', 'tree'] as View[]).map((v) => <button key={v} className={view === v ? 'on' : ''} aria-pressed={view === v} onClick={() => setView(v)}>{v === 'data' ? 'Data' : v === 'json' ? 'Json' : 'Tree'}</button>)}
+          {(['data', 'json', 'tree', 'pipeline'] as View[]).map((v) => <button key={v} className={view === v ? 'on' : ''} aria-pressed={view === v} onClick={() => setView(v)}>{v === 'data' ? 'Data' : v === 'json' ? 'Json' : v === 'tree' ? 'Tree' : 'Pipeline'}</button>)}
         </div>
+        {view !== 'pipeline' && <>
         <button className="btn sm" disabled={readOnly} onClick={() => setAdding(true)}><Icon name="plus" size={11} />Add document</button>
         <button className="btn sm" disabled={readOnly || !sel || view !== 'data'} onClick={() => stageDelete(selected())}><Icon name="minus" size={11} />Delete</button>
         {count > 0 && <span className="muted">{count} pending</span>}
@@ -233,6 +236,7 @@ export function MongoView({ tab }: { tab: Tab }): ReactNode {
         <button className="btn sm icon" aria-label="Next page" title="Next page" disabled={loading || skip + docs.length >= total} onClick={() => void leave(() => load(applied, skip + PAGE))}><Icon name="chevronRight" size={11} /></button>
         <button className={`btn sm icon ${showFilter ? 'on' : ''}`} aria-label="Toggle filter" aria-pressed={showFilter} title="Filter" onClick={() => setShowFilter(!showFilter)}><Icon name="filter" size={11} /></button>
         <button className="btn sm icon" aria-label="Refresh" title="Refresh" disabled={loading} onClick={() => void leave(() => load())}><Icon name="refresh" size={11} /></button>
+        </>}
       </div>
       {adding && <AddDocument onClose={() => setAdding(false)} onAdd={(d) => { stageInsert([d]); setAdding(false); setView('data') }} />}
     </div>

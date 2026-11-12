@@ -171,6 +171,7 @@ register({
   'mongo.indexes': (_c, s: string, coll: string) => mongo(s).indexes(coll),
   'mongo.command': (_c, s: string, json: string) => mongo(s).command(json),
   'mongo.shell': (_c, s: string, code: string) => mongo(s).shell(code),
+  'mongo.aggregate': (_c, s: string, coll: string, pipeline: string, limit?: number) => mongo(s).aggregate(coll, pipeline, limit),
 
   // ---- history & state ----
   'history.list': (_c, connId: string, search?: string) => store.listHistory(connId, search),

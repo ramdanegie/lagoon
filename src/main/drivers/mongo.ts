@@ -98,18 +98,32 @@ export class MongoDriver {
     return toEjson(await this.d().command(fromEjson(json)))
   }
 
+  private shellContext(): vm.Context {
+    const db = this.d()
+    const dbProxy = new Proxy(db, {
+      get: (t, k: string) => (k in t ? (t as never)[k] : k === 'getCollection' ? (n: string) => t.collection(n) : t.collection(k))
+    })
+    return vm.createContext({ db: dbProxy, ObjectId, ISODate: (s: string) => new Date(s), Date, JSON, Math, NumberLong: BSON.Long.fromString, NumberDecimal: BSON.Decimal128.fromString })
+  }
+
+  /** Preview of an aggregation pipeline in shell syntax (unquoted keys, ObjectId(), ISODate()): its first `limit` documents. */
+  async aggregate(coll: string, pipeline: string, limit = 100): Promise<string[]> {
+    const stages: unknown = vm.runInContext(`(${pipeline})`, this.shellContext(), { timeout: 2000 })
+    if (!Array.isArray(stages)) throw new Error('The pipeline must be an array of stages.')
+    const writes = stages.flatMap((st) => Object.keys(st ?? {})).filter((k) => k === '$out' || k === '$merge')
+    if (writes.length) throw new Error(`${writes[0]} writes to a collection, so the preview does not run it. Copy the pipeline into a query tab to run it for real.`)
+    this.onSql(`db.${coll}.aggregate(${pipeline})`)
+    const docs = await this.d().collection(coll).aggregate([...stages, { $limit: limit }], { maxTimeMS: 60000 }).toArray()
+    return docs.map(toEjson)
+  }
+
   /**
    * Shell-style code: `db.users.find({age: {$gt: 30}}).sort({age: -1})`. Runs in a vm context whose `db` maps
    * unknown properties to collections. The user types this code themselves, same trust level as mongosh.
    */
   async shell(code: string): Promise<{ docs?: string[]; value?: string }> {
     this.onSql(code)
-    const db = this.d()
-    const dbProxy = new Proxy(db, {
-      get: (t, k: string) => (k in t ? (t as never)[k] : k === 'getCollection' ? (n: string) => t.collection(n) : t.collection(k))
-    })
-    const ctx = vm.createContext({ db: dbProxy, ObjectId, ISODate: (s: string) => new Date(s), Date, JSON, Math, NumberLong: BSON.Long.fromString, NumberDecimal: BSON.Decimal128.fromString })
-    let res = await vm.runInContext(`(async () => (${code.trim().replace(/;\s*$/, '')}))()`, ctx, { timeout: 5000 })
+    let res = await vm.runInContext(`(async () => (${code.trim().replace(/;\s*$/, '')}))()`, this.shellContext(), { timeout: 5000 })
     if (res && typeof res.toArray === 'function') {
       if (typeof res.limit === 'function') res = res.limit(LIMIT)
       return { docs: (await res.toArray()).map(toEjson) }
