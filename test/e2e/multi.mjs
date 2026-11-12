@@ -156,6 +156,18 @@ try {
   await w.screenshot({ path: join(shots, 'S57-favorites.png') })
   step('favorites at the top of the tree; ⌥⌘1 opens the first')
 
+  // data profiling: per-column stats on Postgres
+  await w.getByRole('tab', { name: 'Stats', exact: true }).click()
+  await w.getByRole('status').filter({ hasText: '5 columns profiled' }).waitFor()
+  const card = (n) => w.getByRole('region', { name: `Column ${n}` })
+  assert.match(await card('id').innerText(), /Distinct\s+750 · 100\.0%\s*unique/)
+  await card('id').getByText('Distribution').waitFor()
+  assert.match(await card('city').innerText(), /Nulls\s+0 · 0\.0%[\s\S]*Most common[\s\S]*(Jakarta|Paris|Tokyo|Berlin)/)
+  assert.match(await card('email').innerText(), /Length\s+\d+ – \d+/)
+  await w.screenshot({ path: join(shots, 'S58-column-stats.png') })
+  await w.getByRole('tab', { name: 'Data', exact: true }).click()
+  step('Stats view profiles every column (unique, nulls, distribution, common values)')
+
   // a query in the crm tab runs against crm
   await w.getByRole('treeitem', { name: 'contacts' }).click({ button: 'right' })
   await w.getByRole('menuitem', { name: 'New Query Here' }).click()

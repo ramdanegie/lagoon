@@ -257,3 +257,17 @@ input[type='checkbox'], input[type='radio'], input[type='range'], progress { acc
 .tour-dots span.on { background: var(--accent); width: 16px; border-radius: 3px; }
 .tour-actions { display: flex; align-items: center; gap: var(--sp-3); }
 .tour-startup { font-size: var(--fs-sm); color: var(--fg-muted); }
+
+/* ---------- column stats (data profiling) ---------- */
+.stats-head { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); background: var(--bg-elev); flex: none; font-size: var(--fs-sm); }
+.stats-grid { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-4); padding: var(--sp-4); align-content: start; background: var(--bg-app); }
+.stat-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; font-size: var(--fs-sm); }
+.stat-card header { display: flex; align-items: baseline; gap: var(--sp-3); min-width: 0; }
+.stat-card dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-4); margin: 0; }
+.stat-card dt { color: var(--fg-muted); }
+.stat-card dd { margin: 0; min-width: 0; display: flex; gap: var(--sp-2); align-items: center; }
+.stat-bars { display: flex; flex-direction: column; gap: 2px; }
+.stat-bar { display: grid; grid-template-columns: minmax(0, 40%) 1fr auto; gap: var(--sp-3); align-items: center; font-size: var(--fs-xs); }
+.stat-bar .track { height: 8px; background: var(--bg-hover); border-radius: 4px; overflow: hidden; }
+.stat-bar .track > span { display: block; height: 100%; background: var(--accent); }
+.badge-soft { font-size: var(--fs-xs); padding: 0 var(--sp-2); border-radius: var(--r-sm); background: var(--bg-active); color: var(--fg-muted); }

@@ -3,7 +3,8 @@ import { ipcMain, dialog, shell, BrowserWindow, type WebContents } from 'electro
 import { readFileSync, writeFileSync } from 'fs'
 import type { Connection, Result, TableQuery } from '@shared/types'
 import { dialectOf } from '@shared/types'
-import { selectSql, countSql } from '@shared/sqlgen'
+import { selectSql, countSql, isNumericType } from '@shared/sqlgen'
+import { profileSql, histSql, readProfile, type ColumnProfile } from '@shared/profile'
 import * as store from './store'
 import { openSession, closeSession, reconnect, session, sqlDriver, buildDriver, checkPassword } from './sessions'
 import type { RedisDriver } from './drivers/redis'
@@ -90,6 +91,18 @@ register({
   'db.ddl': (_c, s: string, schema: string, name: string, kind: string) => sqlDriver(s).ddl(schema, name, kind),
   'db.estimate': (_c, s: string, schema: string, table: string) => sqlDriver(s).estimateCount(schema, table),
   'db.tableStats': (_c, s: string, schema: string) => sqlDriver(s).tableStats(schema),
+  /** One column's statistics; types without ordering or equality (json, Postgres booleans) are compared as text. */
+  'db.profileColumn': async (_c, s: string, schema: string, table: string, col: string, type: string, sample: number | null): Promise<ColumnProfile> => {
+    const d = sqlDriver(s)
+    const run = async (plain: boolean): Promise<[unknown[], unknown[][]]> => {
+      const q = profileSql(d.dialect, schema, table, col, type, sample, plain)
+      return [(await d.query(q.stats)).rows[0], (await d.query(q.top)).rows]
+    }
+    const [stats, top] = await run(false).catch(() => run(true))
+    const min = Number(stats[3]), max = Number(stats[4])
+    const hist = isNumericType(type) && Number.isFinite(min) && Number.isFinite(max) && max > min ? (await d.query(histSql(d.dialect, schema, table, col, min, max, sample))).rows : []
+    return readProfile(stats, top, hist, { min, max })
+  },
   'db.rows': async (_c, s: string, q: TableQuery, cols: { name: string; type: string }[]) => {
     const d = sqlDriver(s)
     const sql = selectSql(d.dialect, q, cols)

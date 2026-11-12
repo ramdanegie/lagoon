@@ -21,7 +21,7 @@ export interface Tab {
   name?: string
   objKind?: ObjectKind
   preview?: boolean // replaced by the next object opened (single click)
-  view?: 'data' | 'structure' | 'index'
+  view?: 'data' | 'structure' | 'index' | 'stats'
   initialFilter?: { column: string; op: string; value: string }
   content?: string // query text
   filePath?: string // a saved query (queries folder)

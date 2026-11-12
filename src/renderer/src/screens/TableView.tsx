@@ -14,6 +14,7 @@ import { QuickLook } from './QuickLook'
 import { Structure, type StructureApi } from './Structure'
 import { ExportResultDialog } from './ImportExport'
 import { openTool } from './Tools'
+import { ColumnStats } from './ColumnStats'
 import { FkPicker } from './FkPicker'
 import { GridFind } from './GridFind'
 import { deleteProfile, profilesKey, renameProfile, saveProfile, type ProfileMap, type TableProfile } from '../lib/profiles'
@@ -578,6 +579,8 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
                 />
               )}
             </>
+          ) : view === 'stats' ? (
+            <ColumnStats schema={schema} table={name} columns={cols} />
           ) : (
             <Structure tab={tab} view={view} columns={cols} fks={fks} apiRef={structApi} onCommitted={async () => { await loadMeta(); bumpPending() }} />
           )}
@@ -616,6 +619,7 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
           <button role="tab" aria-selected={view === 'data'} className={view === 'data' ? 'on' : ''} disabled={tab.isNew} onClick={() => updateTab(tab.id, { view: 'data' })}>Data</button>
           <button role="tab" aria-selected={view === 'structure'} className={view === 'structure' ? 'on' : ''} onClick={() => updateTab(tab.id, { view: 'structure' })}>Structure</button>
           {!isView && <button role="tab" aria-selected={view === 'index'} className={view === 'index' ? 'on' : ''} disabled={tab.isNew} onClick={() => updateTab(tab.id, { view: 'index' })}>Indexes</button>}
+          <button role="tab" aria-selected={view === 'stats'} className={view === 'stats' ? 'on' : ''} disabled={tab.isNew} title="Data profile: nulls, distinct values, ranges and distributions per column" onClick={() => updateTab(tab.id, { view: 'stats' })}>Stats</button>
         </div>
         {view === 'data' && (
           <>
