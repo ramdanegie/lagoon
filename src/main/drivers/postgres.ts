@@ -76,12 +76,23 @@ export class PostgresDriver implements SqlDriver {
     return (await this.rows<{ datname: string }>('SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY 1')).map((r) => r.datname)
   }
 
+  // the working schema put first on search_path, and the path the server started with
+  private path?: { schema: string; base: string }
+
+  async useSchema(schema: string): Promise<void> {
+    if (this.path?.schema === schema) return
+    const base = this.path?.base ?? (await this.rows<{ search_path: string }>('SHOW search_path'))[0].search_path
+    await this.rows('SELECT set_config($1, $2, false)', ['search_path', ['"' + schema.replace(/"/g, '""') + '"', base].filter(Boolean).join(', ')])
+    this.path = { schema, base }
+  }
+
   async useDatabase(name: string): Promise<void> {
     const next = new pg.Client(this.config(name))
     await next.connect()
     await this.close()
     this.client = next
     this.db = name
+    this.path = undefined
     this.client.on('notice', (n) => this.notices.push(`${n.severity ?? 'NOTICE'}: ${n.message}`))
     this.client.on('error', () => {})
   }
@@ -207,6 +218,7 @@ export class PostgresDriver implements SqlDriver {
 
   async query(sql: string): Promise<Result> {
     this.notices = []
+    if (this.path && /^\s*(rollback|abort)\b/i.test(sql)) this.path.schema = '' // a rollback can undo our SET: apply it again next time
     this.onSql(sql)
     const t = performance.now()
     const r = (await this.client.query({ text: sql, rowMode: 'array' })) as unknown as pg.QueryArrayResult | pg.QueryArrayResult[]

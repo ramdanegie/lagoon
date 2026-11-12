@@ -57,6 +57,7 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
   const [count, setCount] = useState<{ n: number; estimated: boolean } | null>(null)
   const [sel, setSel] = useState<Sel | null>(null)
   const [loading, setLoading] = useState(true)
+  const [unseen, setUnseen] = useState<number | null>(null) // statistics' row estimate when the first page came back empty
   const [error, setError] = useState<string | null>(null)
   const [lastSql, setLastSql] = useState('')
   const [quick, setQuick] = useState<{ r: number; c: number } | null>(null)
@@ -147,10 +148,12 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
       undo.current = []
       redo.current = []
       bumpPending()
-      // counting: estimate for big unfiltered tables, exact otherwise
+      // counting: a short page is the last one; else estimate for big unfiltered tables, exact otherwise
       const filtered = applied.some((f) => f.enabled)
       const est = filtered || isView ? null : await call<number | null>('db.estimate', s.sessionId, schema, name).catch(() => null)
-      if (est !== null && estimateOver > 0 && est > estimateOver) setCount({ n: est, estimated: true })
+      setUnseen(!r.rows.length && !offset && est ? est : null)
+      if (r.rows.length < pageSize) setCount({ n: offset + r.rows.length, estimated: false })
+      else if (est !== null && estimateOver > 0 && est > estimateOver) setCount({ n: est, estimated: true })
       else { logSql(countSql(d, query(), colTypes())); setCount({ n: await call<number>('db.count', s.sessionId, query(), colTypes()), estimated: false }) }
     } catch (e) {
       setError(errText(e))
@@ -575,7 +578,8 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
                   onKey={gridKey}
                   onCopy={(ev) => ev.clipboardData?.setData('text/plain', formatRows('csv', resCols, selectedRows().map(rowValues)))}
                   onPaste={(ev) => pasteRows(ev.clipboardData?.getData('text/plain') ?? '')}
-                  empty={loading ? 'Loading…' : applied.some((f) => f.enabled) ? 'No rows match the filter.' : 'This table is empty.'}
+                  empty={loading ? 'Loading…' : applied.some((f) => f.enabled) ? 'No rows match the filter.'
+                    : unseen ? `No rows visible to this login, though statistics estimate ~${unseen.toLocaleString()}. Row-level security may hide them, or the statistics are out of date.` : 'This table is empty.'}
                 />
               )}
             </>

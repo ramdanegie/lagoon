@@ -127,8 +127,10 @@ register({
     return out
   },
   /** Run statements one by one; each gets its own Result (error included) unless stopOnError. */
-  'db.query': async (_c, s: string, stmts: string[], opts: { stopOnError?: boolean; source?: string } = {}) => {
+  'db.query': async (_c, s: string, stmts: string[], opts: { stopOnError?: boolean; source?: string; schema?: string } = {}) => {
     const out: Result[] = []
+    // best effort: in an aborted transaction the SET fails, and the user's ROLLBACK must still run
+    if (opts.schema) await sqlDriver(s).useSchema?.(opts.schema).catch(() => {})
     for (const sql of stmts) {
       try {
         out.push(await runLogged(s, sql, opts.source ?? 'editor'))

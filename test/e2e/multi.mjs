@@ -228,6 +228,43 @@ try {
   await w.waitForTimeout(500)
   step('results from a search_path table in mixed case are editable; read-only says why')
 
+  // the schema picked in the tree is where the editor's unqualified names resolve; moving between schemas keeps every list right
+  await sqlRun(`drop table if exists staging.only_here, archive.old_one, public.gone;
+create table staging.only_here (id int primary key);
+insert into staging.only_here values (7);
+create table archive.old_one (id int primary key);
+create table public.gone (id int primary key) with (autovacuum_enabled = false);
+insert into public.gone select generate_series(1, 500);
+analyze public.gone;
+delete from public.gone;`, true)
+  await w.waitForTimeout(500)
+  await w.getByRole('treeitem', { name: 'crm', exact: true }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'Refresh' }).click()
+  for (const s of ['archive', 'staging']) await w.getByRole('treeitem', { name: s, exact: true }).locator('.nav-caret').click()
+  await w.getByRole('treeitem', { name: 'old_one' }).click() // archive becomes the working schema
+  await w.getByRole('treeitem', { name: 'only_here' }).click() // then staging
+  await w.waitForTimeout(800)
+  for (const n of ['old_one', 'only_here', 'contacts', 'gone']) assert.equal(await w.getByRole('treeitem', { name: n, exact: true }).count(), 1, `${n} listed once`)
+  assert.equal(await w.locator('.nav-note').filter({ hasText: /^No tables$/ }).count(), 0, 'no schema lost its list')
+  await w.getByRole('treeitem', { name: 'contacts' }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'New Query Here' }).click() // public again
+  await sqlRun('select * from only_here') // not on public: fails
+  await w.getByText(/relation "only_here" does not exist/).first().waitFor()
+  await w.getByRole('treeitem', { name: 'staging', exact: true }).click()
+  await sqlRun('select id as staged from only_here')
+  await w.getByRole('gridcell', { name: '7', exact: true }).waitFor()
+  step('the tree keeps each schema\'s tables when the working schema moves; the editor resolves names in it')
+
+  // statistics say rows exist but none come back (row-level security, stale stats): say so instead of "empty"
+  await w.getByRole('treeitem', { name: 'gone', exact: true }).dblclick()
+  await w.getByText(/No rows visible to this login, though statistics estimate ~500/).waitFor()
+  await w.getByText(/0 of 0 rows/).waitFor()
+  await w.getByRole('treeitem', { name: 'contacts' }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'New Query Here' }).click()
+  await sqlRun('drop table staging.only_here, archive.old_one, public.gone;', true)
+  await w.waitForTimeout(500)
+  step('an empty page with a row estimate explains itself; a short page needs no count')
+
   // many columns and many tabs scroll inside the grid / tab strip; the layout never grows past the window
   const fits = () => w.evaluate(() => {
     const strip = document.querySelector('.tabbar'), grid = [...document.querySelectorAll('.grid')].find((g) => g.offsetParent)

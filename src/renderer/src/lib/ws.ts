@@ -136,8 +136,12 @@ export const setWs = (p: Partial<WsState>): void => useWs.setState(p)
 export const scopes = (): Record<string, Scope> => raw.getState().scopes
 export const useScopes = (): Record<string, Scope> => raw((r) => r.scopes)
 export const useFocus = (): string | undefined => raw((r) => r.focus)
-export const focusOn = (scopeId: string | undefined, schema?: string): void =>
+export const focusOn = (scopeId: string | undefined, schema?: string): void => {
+  const was = scopeId ? raw.getState().scopes[scopeId]?.schema : undefined
   raw.setState((r) => ({ focus: scopeId, ...(scopeId && schema !== undefined && r.scopes[scopeId] ? { scopes: { ...r.scopes, [scopeId]: { ...r.scopes[scopeId], schema } } } : {}) }))
+  // the scope's objects belong to its working schema
+  if (scopeId && schema !== undefined && was !== undefined && schema !== was) void loadObjects(scopeId)
+}
 export const setScope = (scopeId: string, patch: Partial<Scope>): void => raw.setState((r) => (r.scopes[scopeId] ? { scopes: { ...r.scopes, [scopeId]: { ...r.scopes[scopeId], ...patch } } } : {}))
 
 export function bumpPending(): void { raw.setState((s) => ({ pendingVersion: s.pendingVersion + 1 })) }
@@ -161,7 +165,10 @@ export async function loadObjects(scopeId = raw.getState().focus): Promise<void>
       const c = await call<{ name: string; type: string }[]>('mongo.collections', sc.sessionId)
       setScope(sc.id, { objects: c.map((x) => ({ schema: '', name: x.name, kind: x.type === 'view' ? 'view' : 'collection' })) })
     } else if (sc.conn.driver === 'redis') setScope(sc.id, { objects: [] })
-    else if (sc.schema !== undefined) setScope(sc.id, { objects: await call<DbObject[]>('db.objects', sc.sessionId, sc.schema) })
+    else if (sc.schema !== undefined) {
+      const objects = await call<DbObject[]>('db.objects', sc.sessionId, sc.schema)
+      if (scopes()[sc.id]?.schema === sc.schema) setScope(sc.id, { objects }) // a later switch of schema wins
+    }
   } finally {
     setScope(sc.id, { objectsLoading: false })
   }
@@ -319,7 +326,7 @@ export async function runSql(stmts: string[], opts: { stopOnError?: boolean; sou
   if (!opts.skipGuard && !(await guard(stmts, sc.id))) return null
   setScope(sc.id, { busy: (scopes()[sc.id]?.busy ?? 0) + 1 })
   try {
-    return await call<Result[]>('db.query', sc.sessionId, stmts, opts)
+    return await call<Result[]>('db.query', sc.sessionId, stmts, { ...opts, schema: sc.dialect === 'postgres' ? sc.schema : undefined })
   } finally {
     setScope(sc.id, { busy: Math.max(0, (scopes()[sc.id]?.busy ?? 1) - 1) })
   }

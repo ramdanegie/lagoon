@@ -113,7 +113,13 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
     setOpen((o) => ({ ...o, [`c:${c.id}`]: false }))
   }
 
-  const objectsFor = (sc: Scope, schema: string): DbObject[] => (sc.schema === schema || sc.dialect !== 'postgres' ? sc.objects : schemaObjs[`${sc.id}|${schema}`] ?? [])
+  const objectsFor = (sc: Scope, schema: string): DbObject[] => {
+    if (sc.dialect !== 'postgres') return sc.objects
+    const cached = schemaObjs[`${sc.id}|${schema}`]
+    if (sc.schema !== schema) return cached ?? []
+    // while the working schema's list reloads, keep showing the last one so rows don't jump under the pointer
+    return sc.objectsLoading && cached ? cached : sc.objects.filter((o) => o.schema === schema)
+  }
 
   const openSchema = async (sc: Scope, schema: string): Promise<void> => {
     toggle(`s:${sc.id}:${schema}`, true)
@@ -124,15 +130,18 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
     }
   }
 
-  /** Make a schema the scope's working schema (editor default, autocomplete, Open Anything). */
-  const pickSchema = (sc: Scope, schema: string): void => {
+  /** Focus the scope and, on Postgres, make `schema` its working schema (editor search_path, autocomplete, Open Anything).
+   *  The schema it leaves keeps its list in the tree. */
+  const focusSchema = (sc: Scope, schema?: string): void => {
+    const cur = scopes()[sc.id]
+    if (schema !== undefined && cur?.schema !== undefined && cur.schema !== schema && !cur.objectsLoading)
+      setSchemaObjs((x) => ({ ...x, [`${sc.id}|${cur.schema}`]: cur.objects.filter((o) => o.schema === cur.schema) }))
     focusOn(sc.id, schema)
-    if (sc.schema !== schema) void loadObjects(sc.id)
   }
 
   // ---------- object actions (always bound to the node's scope) ----------
   const openObj = (sc: Scope, o: DbObject, preview: boolean, newTab = false): void => {
-    focusOn(sc.id, sc.dialect === 'postgres' ? o.schema : undefined)
+    focusSchema(sc, sc.dialect === 'postgres' ? o.schema : undefined)
     const base = { scope: sc.id, title: o.name, name: o.name, objKind: o.kind, preview }
     if (o.kind === 'function' || o.kind === 'procedure' || o.kind === 'sequence') openTab({ ...base, kind: 'ddl', schema: o.schema }, { newTab })
     else if (o.kind === 'collection' || (sc.conn.driver === 'mongodb' && o.kind === 'view')) openTab({ ...base, kind: 'mongo' }, { newTab })
@@ -229,7 +238,7 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
     const isTable = o.kind === 'table'
     const pinKey = `${sc.conn.id}`
     const pinned = (pins[pinKey] ?? []).includes(keyOf(o))
-    const withFocus = (f: () => void) => () => { focusOn(sc.id, sc.dialect === 'postgres' ? o.schema : undefined); f() }
+    const withFocus = (f: () => void) => () => { focusSchema(sc, sc.dialect === 'postgres' ? o.schema : undefined); f() }
     return [
       { label: 'Open', onClick: () => openObj(sc, o, false) },
       { label: 'Open in New Tab', onClick: () => openObj(sc, o, false, true) },
@@ -268,7 +277,7 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
   }
 
   const newItemsMenu = (sc: Scope, schema?: string): MenuItem[] => {
-    const f = (fn: () => void) => () => { focusOn(sc.id, schema); fn() }
+    const f = (fn: () => void) => () => { focusSchema(sc, schema); fn() }
     if (sc.conn.driver === 'mongodb') return [{ label: 'New Collection…', onClick: async () => { const n = await promptDialog('New collection'); if (n?.trim()) { await call('mongo.createCollection', sc.sessionId, n.trim()).catch(fail); await refreshScope(sc) } } }]
     return [
       { label: 'New Query', onClick: f(() => newQueryTab()) },
@@ -390,7 +399,7 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
           k, depth, label: `${title}`, caret: true, expanded, extra: <span className="count">{items.length}</span>, onToggle: () => toggle(k, !expanded),
           // SQL "Tables" opens the overview (row counts, sizes); the caret still expands the list
           ...(id === 'tables' && sc.dialect
-            ? { onClick: () => { focusOn(sc.id, sc.dialect === 'postgres' ? schema : undefined); openTab({ scope: sc.id, kind: 'tables', title: `Tables · ${schema || sc.database}`, schema }) }, onDoubleClick: () => toggle(k, !expanded) }
+            ? { onClick: () => { focusSchema(sc, sc.dialect === 'postgres' ? schema : undefined); openTab({ scope: sc.id, kind: 'tables', title: `Tables · ${schema || sc.database}`, schema }) }, onDoubleClick: () => toggle(k, !expanded) }
             : { onClick: () => toggle(k, !expanded) })
         }),
         ...(expanded ? items.flatMap((o, i) => {
@@ -406,7 +415,7 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
               extra: pinned.includes(keyOf(o)) ? <Icon name="pin" size={10} className="faint" /> : undefined,
               onClick: (e) => { select(sc, o, items, e); if (!e.metaKey && !e.ctrlKey && !e.shiftKey) openObj(sc, o, true) },
               onDoubleClick: () => openObj(sc, o, false),
-              onMenu: (e) => { if (!sel.has(keyOf(o))) setScope(sc.id, { selectedObjects: [o] }); focusOn(sc.id, sc.dialect === 'postgres' ? o.schema : undefined); menuAt(e, itemMenu(sc, o)) }
+              onMenu: (e) => { if (!sel.has(keyOf(o))) setScope(sc.id, { selectedObjects: [o] }); focusSchema(sc, sc.dialect === 'postgres' ? o.schema : undefined); menuAt(e, itemMenu(sc, o)) }
             }),
             ...(open[ok] ? (cols[ok] ?? []).map((c) => (
               <div key={`${rk}:${c.name}`} className="list-item nav-note" style={{ paddingLeft: 34 + (depth + 1) * 14, fontSize: 'var(--fs-sm)' }}>
@@ -449,9 +458,9 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
           selected: focus === sc.id && sc.schema === schema && !activeTab,
           extra: sc.schema === schema ? <span className="count">default</span> : undefined,
           onToggle: () => (sx ? toggle(sk, false) : void openSchema(sc, schema)),
-          onClick: () => pickSchema(sc, schema),
+          onClick: () => focusSchema(sc, schema),
           onDoubleClick: () => (sx ? toggle(sk, false) : void openSchema(sc, schema)),
-          onMenu: (e) => { pickSchema(sc, schema); menuAt(e, newItemsMenu(sc, schema)) }
+          onMenu: (e) => { focusSchema(sc, schema); menuAt(e, newItemsMenu(sc, schema)) }
         }))
         if (sx) nodes.push(...renderObjects(sc, schema, depth + 2))
       }

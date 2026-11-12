@@ -33,6 +33,8 @@ export interface SqlDriver {
   /** The table a reference in a query names, resolved the way the server does (search path, case, quoting). */
   resolveTable(ref: { schema?: string; table: string; raw: string }): Promise<{ schema: string; table: string } | null>
   query(sql: string): Promise<Result>
+  /** Make unqualified names in the editor resolve in this schema first (Postgres search_path). */
+  useSchema?(schema: string): Promise<void>
   cancel(): Promise<void>
   processes(): Promise<Result>
   kill(id: string): Promise<string>
