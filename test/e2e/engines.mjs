@@ -74,6 +74,27 @@ try {
   await rw.getByText('Jakarta').first().waitFor()
   await rw.screenshot({ path: join(shots, 'S38-redis.png') })
   step('Redis: key list + hash value panel')
+
+  // Pub/Sub: subscribe to a pattern, publish, the message shows up; Monitor sees the PUBLISH command
+  await rw.getByRole('treeitem', { name: 'Monitor', exact: true }).click()
+  await rw.getByRole('button', { name: 'Start monitor' }).click()
+  await rw.getByRole('button', { name: 'Stop' }).waitFor()
+  await rw.getByRole('treeitem', { name: 'Pub/Sub', exact: true }).click()
+  await rw.getByLabel('Channel or pattern to subscribe to').fill('news.*')
+  await rw.getByRole('button', { name: 'Subscribe' }).click()
+  await rw.getByRole('listitem').filter({ hasText: 'news.*' }).waitFor()
+  await rw.getByLabel('Channel to publish to').fill('news.today')
+  await rw.getByLabel('Message to publish').fill('hello lagoon')
+  await rw.getByRole('button', { name: 'Publish' }).click()
+  await rw.getByText('Delivered to 1 subscriber').waitFor()
+  await rw.getByRole('gridcell', { name: 'hello lagoon', exact: true }).waitFor()
+  assert.ok(await rw.getByRole('gridcell', { name: 'news.today', exact: true }).count())
+  await rw.screenshot({ path: join(shots, 'S54-redis-pubsub.png') })
+  await rw.getByRole('tab', { name: /Monitor/ }).click()
+  await rw.getByRole('gridcell', { name: /PUBLISH news\.today "hello lagoon"/ }).waitFor()
+  await rw.screenshot({ path: join(shots, 'S55-redis-monitor.png') })
+  await rw.getByRole('button', { name: 'Stop' }).click()
+  step('Redis: Pub/Sub delivers a published message; Monitor shows the command')
   await rw.close()
 
   // ---------- MongoDB ----------

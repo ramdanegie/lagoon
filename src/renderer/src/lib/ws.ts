@@ -10,7 +10,7 @@ import { dialectOf } from '@shared/types'
 import { isReadOnly } from '@shared/split'
 import { call, toast, uid } from './api'
 
-export type TabKind = 'table' | 'tables' | 'query' | 'ddl' | 'redis' | 'mongo' | 'metrics' | 'diagram' | 'users' | 'empty'
+export type TabKind = 'table' | 'tables' | 'query' | 'ddl' | 'redis' | 'redisLive' | 'mongo' | 'metrics' | 'diagram' | 'users' | 'empty'
 
 export interface Tab {
   id: string

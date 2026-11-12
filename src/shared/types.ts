@@ -84,6 +84,9 @@ export type ObjectKind = 'table' | 'view' | 'matview' | 'function' | 'procedure'
 
 export interface DbObject { schema: string; name: string; kind: ObjectKind }
 
+/** A Pub/Sub message (channel, pattern, message) or a MONITOR line (args, source, db). */
+export interface RedisLiveEvent { at: number; channel?: string; pattern?: string; message?: string; args?: string[]; source?: string; db?: number }
+
 /** One row of the tables overview. Sizes in bytes; rows are the server's estimate (exact for SQLite). */
 export interface TableStat { name: string; kind: ObjectKind; rows: number | null; data: number | null; index: number | null; comment: string | null }
 

@@ -469,6 +469,10 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
     if (c.driver === 'redis') {
       const sc = scs[0]
       nodes.push(row({ k: `rk:${c.id}`, depth: depth + 1, label: `Keys · db${sc?.database ?? 0}`, icon: <Icon name="key" size={13} className="faint" />, onClick: () => { if (sc) { focusOn(sc.id); openTab({ scope: sc.id, kind: 'redis', title: `${c.name} · db${sc.database ?? 0}` }) } }, onDoubleClick: () => { if (sc) openTab({ scope: sc.id, kind: 'redis', title: `${c.name} · db${sc.database ?? 0}` }) } }))
+      for (const [mode, label] of [['pubsub', 'Pub/Sub'], ['monitor', 'Monitor']] as const) {
+        const open = (): void => { if (sc) { focusOn(sc.id); openTab({ scope: sc.id, kind: 'redisLive', title: `${label} · ${c.name}`, name: mode }) } }
+        nodes.push(row({ k: `rl:${c.id}:${mode}`, depth: depth + 1, label, icon: <Icon name="console" size={13} className="faint" />, onClick: open, onDoubleClick: open }))
+      }
       return nodes
     }
     const all = dbs[c.id] ?? scs.map((s) => s.database ?? '').filter(Boolean)

@@ -25,3 +25,4 @@
 .mongo-tree .v { overflow: hidden; text-overflow: ellipsis; }
 .mongo-tree .t { color: var(--fg-faint); font-family: var(--font-ui); font-size: var(--fs-xs); margin-left: auto; padding-left: var(--sp-5); }
 .mongo-tree .kids { padding-left: var(--sp-6); border-left: 1px solid var(--grid-line); margin-left: 7px; }
+.chip { display: inline-flex; align-items: center; gap: var(--sp-1); height: 22px; padding-left: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-input); font-size: var(--fs-sm); }

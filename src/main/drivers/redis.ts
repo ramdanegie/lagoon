@@ -29,6 +29,9 @@ export class RedisDriver {
   }
 
   close = async (): Promise<void> => void this.r?.disconnect()
+  /** Pub/Sub and MONITOR take over the connection they run on, so they get their own with the same settings. */
+  subscriber = (): Redis => this.r.duplicate()
+  monitor = (): Promise<Redis> => this.r.monitor()
   ping = async (): Promise<void> => void (await this.r.ping())
 
   private async call(...args: (string | number)[]): Promise<unknown> {
