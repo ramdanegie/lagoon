@@ -230,3 +230,34 @@ export function importBatchSql(d: Dialect, schema: string, table: string, cols: 
   // shortcut: one UPDATE per row; fine for thousands of rows, a join against a VALUES list would be faster for millions
   return rows.map((r) => updateSql(d, schema, table, keyOf(r), Object.fromEntries(set.map((c) => [c, r[cols.indexOf(c)]])), typeOf).replace(/;$/, ''))
 }
+
+export type ExportFormat = 'csv' | 'json' | 'jsonl' | 'sql' | 'xlsx' | 'markdown' | 'html' | 'xml'
+/** id, label, file extension */
+export const EXPORT_FORMATS: [ExportFormat, string, string][] = [
+  ['csv', 'CSV', 'csv'], ['json', 'JSON', 'json'], ['jsonl', 'JSON Lines', 'jsonl'], ['sql', 'SQL', 'sql'], ['xlsx', 'Excel', 'xlsx'],
+  ['markdown', 'Markdown', 'md'], ['html', 'HTML', 'html'], ['xml', 'XML', 'xml']
+]
+export const exportExt = (f: ExportFormat): string => EXPORT_FORMATS.find((x) => x[0] === f)?.[2] ?? f
+
+const cellText = (v: unknown): string => (typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v))
+// eslint-disable-next-line no-control-regex
+const xmlEsc = (s: string): string => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const mdEsc = (s: string): string => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n|\r/g, '<br>')
+
+/** JSON Lines, Markdown, HTML and XML, written page by page so big tables never sit in memory. */
+export async function* markupText(fmt: 'jsonl' | 'markdown' | 'html' | 'xml', title: string, names: string[], numeric: boolean[], pages: AsyncIterable<unknown[][]>): AsyncGenerator<string> {
+  if (fmt === 'markdown') yield `| ${names.map(mdEsc).join(' | ')} |\n|${names.map(() => ' --- |').join('')}\n`
+  if (fmt === 'html') yield `<!doctype html>\n<html><head><meta charset="utf-8"><title>${xmlEsc(title)}</title>\n<style>body{font:13px system-ui,sans-serif}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left;vertical-align:top;white-space:pre-wrap}th{background:#f3f3f3}.null{color:#999;font-style:italic}</style></head>\n<body><table>\n<thead><tr>${names.map((n) => `<th>${xmlEsc(n)}</th>`).join('')}</tr></thead>\n<tbody>\n`
+  if (fmt === 'xml') yield `<?xml version="1.0" encoding="UTF-8"?>\n<table name="${xmlEsc(title)}">\n`
+  for await (const rows of pages) {
+    yield rows.map((r) => {
+      const nul = (i: number): boolean => r[i] === null || r[i] === undefined
+      if (fmt === 'jsonl') return JSON.stringify(Object.fromEntries(names.map((n, i) => [n, typedValue(r[i] ?? null, numeric[i])]))) + '\n'
+      if (fmt === 'markdown') return `| ${names.map((_n, i) => (nul(i) ? 'NULL' : mdEsc(cellText(r[i])))).join(' | ')} |\n`
+      if (fmt === 'html') return `<tr>${names.map((_n, i) => (nul(i) ? '<td class="null">NULL</td>' : `<td>${xmlEsc(cellText(r[i]))}</td>`)).join('')}</tr>\n`
+      return `  <row>\n${names.map((n, i) => `    <field name="${xmlEsc(n)}"${nul(i) ? ' null="true"/>' : `>${xmlEsc(cellText(r[i]))}</field>`}\n`).join('')}  </row>\n`
+    }).join('')
+  }
+  if (fmt === 'html') yield '</tbody>\n</table></body></html>\n'
+  if (fmt === 'xml') yield '</table>\n'
+}

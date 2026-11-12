@@ -8,7 +8,7 @@ import { call, errText, fail, toast, useSetting } from '../lib/api'
 import { useScopes, useFocus, useWs, focusOn, setScope, openScope, closeConnection, closeScope, openTab, loadObjects, newQueryTab, runSql, guard, scopes, type Scope } from '../lib/ws'
 import { pluginMenuItems } from '../lib/plugins'
 import { Icon, kindIcon } from '../components/Icon'
-import { confirmDialog, menuAt, promptDialog, type MenuItem } from '../components/ui'
+import { Modal, confirmDialog, menuAt, promptDialog, type MenuItem } from '../components/ui'
 import { ConnectionForm, DriverPicker, UrlImport, DRIVER_COLORS } from './ConnectionForm'
 import { ExportConnections, importConnectionsFile, importForeignConnections } from './ConnectionIO'
 import { openTool } from './Tools'
@@ -35,6 +35,7 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<FormState>(null)
   const [exportIds, setExportIds] = useState<string[] | null>(null)
+  const [choosing, setChoosing] = useState<Connection | null>(null)
   const [sortBy, setSortBy] = useSetting<'name' | 'tag' | 'driver'>('welcome.sortBy', 'name')
   const [sysSchemas] = useSetting('table.showSystemSchemas', false)
   const [showCols] = useSetting('sidebar.showColumns', false)
@@ -277,6 +278,11 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
     { label: 'Export All Connections…', disabled: !conns.length, onClick: () => setExportIds(conns.map((c) => c.id)) },
     { label: 'Sort By', submenu: (['name', 'tag', 'driver'] as const).map((k) => ({ label: k[0].toUpperCase() + k.slice(1), checked: sortBy === k, onClick: () => setSortBy(k) })) }
   ]
+  /** Databases listed in the tree for this connection; undefined = all of them. */
+  const showDatabases = async (c: Connection, databases: string[] | undefined): Promise<void> => {
+    try { await call('conn.patch', c.id, { options: { ...c.options, databases } }); await loadConns() } catch (e) { fail(e) }
+  }
+
   const connMenu = (c: Connection): MenuItem[] => {
     const connected = scopesOf(c.id).length > 0
     const first = scopesOf(c.id)[0]
@@ -284,6 +290,10 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
       connected ? { label: 'Disconnect', onClick: () => void disconnect(c) } : { label: 'Connect', onClick: () => void connect(c) },
       ...(connected && first && isSql(c.driver) ? [{ label: 'New Query', onClick: () => { focusOn(first.id); newQueryTab() } }] : []),
       ...(connected && first ? [{ label: 'Refresh', onClick: () => void fetchDbs(first) }] : []),
+      ...(dbs[c.id] && c.driver !== 'sqlite' ? [
+        { label: 'Show All Databases', checked: !c.options?.databases, onClick: () => (c.options?.databases ? void showDatabases(c, undefined) : setChoosing(c)) },
+        { label: 'Choose Databases…', onClick: () => setChoosing(c) }
+      ] : []),
       { sep: true },
       { label: 'Edit…', onClick: () => setForm({ step: 'form', initial: c }) },
       { label: 'Duplicate', onClick: async () => { await call('conn.duplicate', c.id); void loadConns() } },
@@ -461,9 +471,16 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
       nodes.push(row({ k: `rk:${c.id}`, depth: depth + 1, label: `Keys · db${sc?.database ?? 0}`, icon: <Icon name="key" size={13} className="faint" />, onClick: () => { if (sc) { focusOn(sc.id); openTab({ scope: sc.id, kind: 'redis', title: `${c.name} · db${sc.database ?? 0}` }) } }, onDoubleClick: () => { if (sc) openTab({ scope: sc.id, kind: 'redis', title: `${c.name} · db${sc.database ?? 0}` }) } }))
       return nodes
     }
-    const list = dbs[c.id] ?? scs.map((s) => s.database ?? '').filter(Boolean)
+    const all = dbs[c.id] ?? scs.map((s) => s.database ?? '').filter(Boolean)
+    const pick = c.options?.databases
+    const list = pick ? all.filter((db) => pick.includes(db)) : all
     for (const db of list) nodes.push(...renderDatabase(c, db, depth + 1))
-    if (!list.length) nodes.push(<div key={`ld:${c.id}`} className="faint nav-note" style={{ paddingLeft: 18 + (depth + 1) * 14 }}>Loading databases…</div>)
+    if (pick && dbs[c.id] && all.length > list.length) nodes.push(
+      <div key={`hd:${c.id}`} className="faint nav-note" style={{ paddingLeft: 18 + (depth + 1) * 14 }}>
+        {all.length - list.length} more hidden · <button className="btn ghost sm" style={{ padding: '0 var(--sp-2)', height: 'auto' }} onClick={() => setChoosing(c)}>Choose…</button>
+      </div>
+    )
+    else if (!list.length) nodes.push(<div key={`ld:${c.id}`} className="faint nav-note" style={{ paddingLeft: 18 + (depth + 1) * 14 }}>Loading databases…</div>)
     return nodes
   }
 
@@ -540,9 +557,42 @@ export function Navigator({ filter }: { filter: string }): ReactNode {
         />
       )}
       {exportIds && <ExportConnections ids={exportIds} onClose={() => setExportIds(null)} />}
+      {choosing && <DatabaseChooser conn={choosing} all={dbs[choosing.id] ?? []} onSave={(d) => { void showDatabases(choosing, d); setChoosing(null) }} onClose={() => setChoosing(null)} />}
     </div>
   )
 }
 
 /** The root "+" menu for the sidebar header. */
 export const newConnection = (): void => void window.dispatchEvent(new CustomEvent('nav:newConnection'))
+
+/** Pick which databases a connection lists in the tree (the database picker in the toolbar still opens any of them). */
+function DatabaseChooser({ conn, all, onSave, onClose }: { conn: Connection; all: string[]; onSave: (databases: string[] | undefined) => void; onClose: () => void }): ReactNode {
+  const [on, setOn] = useState<string[]>(conn.options?.databases?.filter((d) => all.includes(d)) ?? all)
+  const [q, setQ] = useState('')
+  const shown = all.filter((d) => d.toLowerCase().includes(q.trim().toLowerCase()))
+  const set = (names: string[], v: boolean): void => setOn((cur) => (v ? [...new Set([...cur, ...names])] : cur.filter((d) => !names.includes(d))))
+  return (
+    <Modal
+      title={`Databases shown for ${conn.name}`}
+      onClose={onClose}
+      width={420}
+      footer={<>
+        <span className="grow muted">{on.length} of {all.length} shown</span>
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={!on.length} onClick={() => onSave(on.length === all.length ? undefined : all.filter((d) => on.includes(d)))}>Save</button>
+      </>}
+    >
+      <div className="col" style={{ gap: 'var(--sp-3)' }}>
+        <div className="row">
+          <input className="input grow" placeholder="Filter databases" aria-label="Filter databases" value={q} onChange={(e) => setQ(e.target.value)} />
+          <button className="btn sm" onClick={() => set(shown, true)}>All</button>
+          <button className="btn sm" onClick={() => set(shown, false)}>None</button>
+        </div>
+        <div className="col" role="group" aria-label="Databases" style={{ gap: 'var(--sp-2)', maxHeight: 340, overflow: 'auto' }}>
+          {shown.map((d) => <label key={d} className="check"><input type="checkbox" checked={on.includes(d)} onChange={(e) => set([d], e.target.checked)} /> {d}</label>)}
+          {!shown.length && <div className="muted">No database matches.</div>}
+        </div>
+      </div>
+    </Modal>
+  )
+}

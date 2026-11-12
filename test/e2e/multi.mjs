@@ -1,7 +1,7 @@
 // One window, several connections and databases: tabs from different databases side by side (like an object explorer).
 // Needs ./test/e2e/fixtures.sh up and `npx electron-vite build`.
 import { _electron as electron } from 'playwright-core'
-import { mkdtempSync, rmSync, mkdirSync } from 'fs'
+import { mkdtempSync, rmSync, mkdirSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import assert from 'assert/strict'
@@ -79,6 +79,22 @@ try {
   assert.equal(await w.getByRole('treeitem', { name: 'contacts' }).count(), 1, 'unpinning leaves one row')
   step('tree notes and pinned rows never pile up')
 
+  // choose which databases the tree lists (like DBeaver's "Show all databases")
+  await w.getByRole('treeitem', { name: 'Postgres local' }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'Choose Databases…' }).click()
+  await w.getByRole('dialog').getByRole('checkbox', { name: 'postgres' }).uncheck()
+  await w.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+  await w.getByText('1 more hidden').waitFor()
+  assert.equal(await w.getByRole('treeitem', { name: 'postgres', exact: true }).count(), 0)
+  assert.equal(await w.getByRole('treeitem', { name: 'crm', exact: true }).count(), 1)
+  const pg = (await w.evaluate(() => window.api.call('conn.list'))).find((c) => c.name === 'Postgres local')
+  assert.deepEqual([...pg.options.databases].sort(), ['crm', 'shop'])
+  await w.screenshot({ path: join(shots, 'S51-chosen-databases.png') })
+  await w.getByRole('treeitem', { name: 'Postgres local' }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'Show All Databases' }).click()
+  await w.getByRole('treeitem', { name: 'postgres', exact: true }).waitFor()
+  step('tree lists only the chosen databases; Show All Databases brings the rest back')
+
   // a second connection in the same window
   await w.getByRole('treeitem', { name: 'MySQL local' }).dblclick()
   await w.getByRole('treeitem', { name: 'products' }).dblclick()
@@ -101,6 +117,31 @@ try {
   const status = await w.locator('.status-bar').innerText()
   assert.match(status, /Postgres local[\s\S]*crm/)
   step('tabs keep their own database; status bar follows the active tab')
+
+  // Export button in the table's bottom bar: whole table and current page, in the newer formats
+  const out = mkdtempSync(join(tmpdir(), 'lg-export-'))
+  await ea.evaluate(({ dialog }, dir) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
+    dialog.showSaveDialog = async (_w, o) => ({ canceled: false, filePath: `${dir}/${o.defaultPath}` })
+  }, out)
+  await w.getByRole('button', { name: 'Export', exact: true }).click()
+  await w.getByRole('menuitem', { name: 'Whole Table…' }).click()
+  await w.getByRole('dialog').getByRole('tab', { name: 'Markdown' }).click()
+  await w.screenshot({ path: join(shots, 'S52-export-formats.png') })
+  await w.getByRole('dialog').getByRole('button', { name: 'Export…' }).click()
+  await w.getByRole('dialog').getByRole('button', { name: 'Show in folder' }).waitFor() // the job finished
+  const mdLines = readFileSync(join(out, 'contacts.md'), 'utf8').trim().split('\n')
+  assert.equal(mdLines.length, 44, 'header, separator and 42 rows')
+  assert.match(mdLines[2], /\| Contact 1 \|/)
+  await w.getByRole('dialog').getByRole('button', { name: 'Close' }).click()
+  await w.getByRole('button', { name: 'Export', exact: true }).click()
+  await w.getByRole('menuitem', { name: 'Current Page…' }).click()
+  await w.getByRole('dialog').getByRole('tab', { name: 'XML' }).click()
+  await w.getByRole('dialog').getByRole('button', { name: 'Export…' }).click()
+  await w.getByText(/Exported 42 rows/).waitFor()
+  assert.equal(readFileSync(join(out, 'contacts.xml'), 'utf8').match(/<row>/g).length, 42)
+  rmSync(out, { recursive: true, force: true })
+  step('Export from the table: whole table as Markdown, current page as XML')
 
   // a query in the crm tab runs against crm
   await w.getByRole('treeitem', { name: 'contacts' }).click({ button: 'right' })

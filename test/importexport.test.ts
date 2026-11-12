@@ -116,3 +116,22 @@ test('import modes: skip, upsert on SQLite, update, delete, truncate, key valida
   assert.equal(m.needsKeys('skip', 'postgres'), false)
   assert.equal(m.needsKeys('delete', 'mysql'), true)
 })
+
+test('export formats: JSON Lines, Markdown, HTML, XML escape values and mark NULL', async () => {
+  const { markupText, exportExt } = await import('../src/shared/importexport.ts')
+  const pages = async function* (): AsyncGenerator<unknown[][]> { yield [['1', 'a|b\nc', null]]; yield [['2', '<x & "y">', { k: 1 }]] }
+  const run = async (f: 'jsonl' | 'markdown' | 'html' | 'xml'): Promise<string> => { let s = ''; for await (const c of markupText(f, 'T<1>', ['id', 'note', 'meta'], [true, false, false], pages())) s += c; return s }
+  assert.equal(await run('jsonl'), '{"id":1,"note":"a|b\\nc","meta":null}\n{"id":2,"note":"<x & \\"y\\">","meta":{"k":1}}\n')
+  assert.equal(await run('markdown'), '| id | note | meta |\n| --- | --- | --- |\n| 1 | a\\|b<br>c | NULL |\n| 2 | <x & "y"> | {"k":1} |\n')
+  const html = await run('html')
+  assert.match(html, /<title>T&lt;1&gt;<\/title>/)
+  assert.match(html, /<tr><td>1<\/td><td>a\|b\nc<\/td><td class="null">NULL<\/td><\/tr>/)
+  assert.match(html, /<td>&lt;x &amp; &quot;y&quot;&gt;<\/td><td>\{&quot;k&quot;:1\}<\/td>/)
+  assert.ok(html.trimEnd().endsWith('</html>'))
+  const xml = await run('xml')
+  assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<table name="T&lt;1&gt;">\n'))
+  assert.match(xml, /<field name="meta" null="true"\/>/)
+  assert.match(xml, /<field name="note">&lt;x &amp; &quot;y&quot;&gt;<\/field>/)
+  assert.ok(xml.endsWith('</table>\n'))
+  assert.equal(exportExt('markdown'), 'md'); assert.equal(exportExt('jsonl'), 'jsonl')
+})

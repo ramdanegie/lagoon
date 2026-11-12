@@ -3,7 +3,7 @@ import { type ReactNode, type MouseEvent as RME, useEffect, useState } from 'rea
 import { create } from 'zustand'
 import type { Column, DbObject, JobProgress } from '@shared/types'
 import { TYPE_LIST, qt } from '@shared/sqlgen'
-import { matchColumns, detectType, textType, expandPattern, needsKeys, CSV_DEFAULTS, type CsvOut, type Matching, type Conflict } from '@shared/importexport'
+import { matchColumns, detectType, textType, expandPattern, needsKeys, CSV_DEFAULTS, EXPORT_FORMATS, exportExt, type CsvOut, type Matching, type Conflict, type ExportFormat as Fmt } from '@shared/importexport'
 import { call, on, toast, fail, errText } from '../lib/api'
 import { useWs, ws, guard, loadObjects } from '../lib/ws'
 import { Modal, Popover, confirmDialog, menuAt, type MenuItem } from '../components/ui'
@@ -326,13 +326,11 @@ export function ImportDialog({ kind, table, onClose }: { kind: 'csv' | 'json' | 
 }
 
 // ---------- export ----------
-type Fmt = 'csv' | 'json' | 'sql' | 'xlsx'
-const FORMATS: [Fmt, string][] = [['csv', 'CSV'], ['json', 'JSON'], ['sql', 'SQL'], ['xlsx', 'Excel']]
 
 function FormatTabs({ value, onChange }: { value: Fmt; onChange: (f: Fmt) => void }): ReactNode {
   return (
-    <div className="tabs" role="tablist" aria-label="Format">
-      {FORMATS.map(([id, label]) => <button key={id} role="tab" aria-selected={value === id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{label}</button>)}
+    <div className="tabs" role="tablist" aria-label="Format" style={{ flexWrap: 'wrap' }}>
+      {EXPORT_FORMATS.map(([id, label]) => <button key={id} role="tab" aria-selected={value === id} className={value === id ? 'on' : ''} onClick={() => onChange(id)}>{label}</button>)}
     </div>
   )
 }
@@ -386,7 +384,7 @@ export function ExportDialog({ items, onClose }: { items: DbObject[]; onClose: (
   const pattern = isSql ? filePattern : folderPattern
   const setPattern = isSql ? setFilePattern : setFolderPattern
   const tokens = { connection: conn?.name, database, schema: checked[0]?.schema, table: checked[0]?.name }
-  const ext = isSql ? (gzip ? '.sql.gz' : '.sql') : `.${format}`
+  const ext = isSql ? (gzip ? '.sql.gz' : '.sql') : `.${exportExt(format)}`
 
   const run = async (): Promise<void> => {
     if (!sessionId) return
@@ -494,7 +492,7 @@ export function ExportResultDialog({ title, columns, rows, table, onClose }: { t
   const [tbl, setTbl] = useState(table ?? 'query_result')
   const [busy, setBusy] = useState(false)
   const run = async (): Promise<void> => {
-    const path = await call<string | undefined>('job.save', { title: 'Export result', defaultPath: `${expandPattern(title, {})}.${format}`, filters: [{ name: FORMATS.find((f) => f[0] === format)![1], extensions: [format] }] })
+    const path = await call<string | undefined>('job.save', { title: 'Export result', defaultPath: `${expandPattern(title, {})}.${exportExt(format)}`, filters: [{ name: EXPORT_FORMATS.find((f) => f[0] === format)![1], extensions: [exportExt(format)] }] })
     if (!path) return
     setBusy(true)
     try {

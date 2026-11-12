@@ -7,7 +7,7 @@ import { pipeline } from 'stream/promises'
 import type { Column, DbObject, Dialect, JobProgress } from '@shared/types'
 import { selectSql, createTableSql, isNumericType, qt, type CellValue } from '@shared/sqlgen'
 import { splitStatements } from '@shared/split'
-import { parseDelimited, parseJsonRecords, jsonColumns, uniqueNames, csvRow, typedValue, importValue, exportValue, insertManySql, importBatchSql, expandPattern, type Conflict, type CsvOut } from '@shared/importexport'
+import { parseDelimited, parseJsonRecords, jsonColumns, uniqueNames, csvRow, typedValue, importValue, exportValue, insertManySql, importBatchSql, expandPattern, markupText, exportExt, EXPORT_FORMATS, type Conflict, type CsvOut, type ExportFormat } from '@shared/importexport'
 import { register } from './rpc'
 import { session, buildDriver } from './sessions'
 import { secretsOf } from './store'
@@ -213,6 +213,9 @@ async function* insertText(d: Dialect, schema: string, table: string, names: str
       yield insertManySql(d, schema, table, names, rows.slice(i, i + BATCH).map((r) => r.map((v, k) => exportValue(d, v, types[k]))), types) + ';\n'
 }
 
+const textFor = (f: ExportFormat, title: string, names: string[], numeric: boolean[], pages: Pages, o: { csv: CsvOut; pretty: boolean }): AsyncIterable<string> =>
+  f === 'csv' ? csvText(names, numeric, pages, o.csv) : f === 'json' ? jsonText(names, numeric, pages, o.pretty) : markupText(f as 'jsonl' | 'markdown' | 'html' | 'xml', title, names, numeric, pages)
+
 async function writeText(path: string, gen: AsyncIterable<string>, gzip = false): Promise<void> {
   try {
     await (gzip ? pipeline(gen, createGzip(), createWriteStream(path)) : pipeline(gen, createWriteStream(path)))
@@ -252,8 +255,8 @@ async function writeXlsx(path: string, sheet: string, names: string[], numeric: 
 
 interface ExportOpts {
   items: DbObject[]
-  format: 'csv' | 'json' | 'sql' | 'xlsx'
-  target: string // folder (csv/json/xlsx) or file (sql)
+  format: ExportFormat
+  target: string // folder (one file per item) or file (sql)
   pattern: string // file name pattern for folder outputs
   csv: CsvOut
   pretty: boolean
@@ -305,7 +308,7 @@ async function exportItems(j: JobCtl, sessionId: string, d: SqlDriver, o: Export
 
   const dir = checkPath(o.target)
   mkdirSync(dir, { recursive: true })
-  const ext = o.format === 'xlsx' ? 'xlsx' : o.format
+  const ext = exportExt(o.format)
   const used = new Set<string>()
   let lastFile = dir
   for (let idx = 0; idx < o.items.length; idx++) {
@@ -318,7 +321,7 @@ async function exportItems(j: JobCtl, sessionId: string, d: SqlDriver, o: Export
     const names = cols.map((c) => c.name)
     const numeric = cols.map((c) => isNumericType(c.type))
     if (o.format === 'xlsx') await writeXlsx(file, it.name, names, numeric, pages)
-    else await writeText(file, o.format === 'csv' ? csvText(names, numeric, pages, o.csv) : jsonText(names, numeric, pages, o.pretty))
+    else await writeText(file, textFor(o.format, it.name, names, numeric, pages, o))
     lastFile = file
     j.progress((idx + 1) / o.items.length)
   }
@@ -331,10 +334,7 @@ async function exportRows(o: { path: string; format: ExportOpts['format']; colum
   const pages = (async function* () { yield o.rows })()
   const numeric = o.columns.map((_c, i) => o.rows.slice(0, 200).every((r) => r[i] === null || typeof r[i] === 'number'))
   if (o.format === 'xlsx') return writeXlsx(path, o.table, o.columns, numeric, pages)
-  const gen = o.format === 'csv' ? csvText(o.columns, numeric, pages, o.csv)
-    : o.format === 'json' ? jsonText(o.columns, numeric, pages, o.pretty)
-      : insertText(o.dialect, '', o.table, o.columns, [], pages)
-  return writeText(path, gen)
+  return writeText(path, o.format === 'sql' ? insertText(o.dialect, '', o.table, o.columns, [], pages) : textFor(o.format, o.table, o.columns, numeric, pages, o))
 }
 
 register({
@@ -369,7 +369,7 @@ register({
   'export.run': (c, sessionId: string, o: ExportOpts) => {
     checkPath(o.target)
     if (!o.items.length) throw new Error('Select at least one table or view.')
-    return startJob(c.sender, 'export', `Export ${o.items.length === 1 ? o.items[0].name : `${o.items.length} items`} (${o.format === 'xlsx' ? 'Excel' : o.format.toUpperCase()})`, async (j) => {
+    return startJob(c.sender, 'export', `Export ${o.items.length === 1 ? o.items[0].name : `${o.items.length} items`} (${EXPORT_FORMATS.find((f) => f[0] === o.format)?.[1] ?? o.format})`, async (j) => {
       const { d, close } = await jobDriver(sessionId)
       try { return await exportItems(j, sessionId, d, o) } finally { await close() }
     })

@@ -28,6 +28,8 @@ export interface ConnectionOptions {
   backupOptions?: string
   restoreOptions?: string
   encoding?: string
+  /** databases listed in the connection tree; unset = all */
+  databases?: string[]
 }
 
 export interface Connection {

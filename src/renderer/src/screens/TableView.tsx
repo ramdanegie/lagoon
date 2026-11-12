@@ -13,6 +13,7 @@ import { RowDetail } from './RowDetail'
 import { QuickLook } from './QuickLook'
 import { Structure, type StructureApi } from './Structure'
 import { ExportResultDialog } from './ImportExport'
+import { openTool } from './Tools'
 import { FkPicker } from './FkPicker'
 import { GridFind } from './GridFind'
 import { deleteProfile, profilesKey, renameProfile, saveProfile, type ProfileMap, type TableProfile } from '../lib/profiles'
@@ -629,6 +630,10 @@ export function TableView({ tab }: { tab: Tab }): ReactNode {
             <button className={`btn sm ${finding ? 'on' : ''}`} title="Find and replace in loaded rows" onClick={() => setFinding(!finding)}><Icon name="search" size={11} /> Find</button>
             <button className={`btn sm ${(profiles[stateKey] ?? []).length ? 'on' : ''}`} title="Saved filters, sort and column layouts for this table" onClick={(e) => profileMenu(e.currentTarget)}><Icon name="star" size={11} /> Profiles{(profiles[stateKey] ?? []).length ? ` (${(profiles[stateKey] ?? []).length})` : ''}</button>
             <button className={`btn sm ${showHist ? 'on' : ''}`} title="SQL sent by this tab this session" onClick={() => setShowHist(!showHist)}><Icon name="history" size={11} /> History</button>
+            <button className="btn sm" title="Save rows as CSV, JSON, Excel, SQL, Markdown, HTML or XML" onClick={(e) => menuBelow(e.currentTarget, [
+              { label: `Whole ${isView ? 'View' : 'Table'}…`, onClick: () => openTool({ kind: 'export', items: [{ schema, name, kind: tab.objKind ?? 'table' }] }) },
+              { label: 'Current Page…', disabled: !base.length, onClick: () => setExporting(true) }
+            ])}><Icon name="download" size={11} /> Export</button>
             {!editable && !loading && !isView && <span className="faint" title="No primary key or unique key: rows cannot be identified safely">Read-only (no key)</span>}
             {pending > 0 && <span style={{ color: 'var(--warning)' }}>{pending} pending</span>}
             <span className="grow" />
