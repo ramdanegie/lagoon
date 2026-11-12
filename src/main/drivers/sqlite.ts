@@ -59,6 +59,12 @@ export class SqliteDriver implements SqlDriver {
       .map((r) => ({ schema, name: r.name, kind: r.type as DbObject['kind'] }))
   }
 
+  async resolveTable(ref: { schema?: string; table: string }): Promise<{ schema: string; table: string } | null> {
+    const schema = ref.schema ?? 'main'
+    const [r] = this.all<{ name: string }>(`SELECT name FROM ${qi(schema)}.sqlite_master WHERE type IN ('table','view') AND name = ? COLLATE NOCASE`, ref.table)
+    return r ? { schema, table: r.name } : null
+  }
+
   async columns(schema: string, table: string): Promise<Column[]> {
     return this.all<Record<string, unknown>>(`PRAGMA ${qi(schema)}.table_xinfo(${qi(table)})`).map((r) => ({
       name: r.name as string, type: (r.type as string) || '', nullable: !r.notnull, default: (r.dflt_value as string) ?? null,

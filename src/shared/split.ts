@@ -148,7 +148,7 @@ const unq = (s: string): string => (/^["`[]/.test(s) ? s.slice(1, -1).replace(/"
  * The table a SELECT reads when its result can be edited row by row: one table, no joins, grouping, DISTINCT,
  * set operations, CTEs or subqueries in FROM. Anything else returns null (results stay read-only).
  */
-export function singleTableOf(sql: string): { schema?: string; table: string } | null {
+export function singleTableOf(sql: string): { schema?: string; table: string; raw: string } | null {
   const s = stripComments(sql).trim().replace(/;\s*$/, '')
   if (!/^select\b/i.test(s)) return null
   const masked = s.replace(/'(?:[^']|'')*'/g, "''")
@@ -158,5 +158,6 @@ export function singleTableOf(sql: string): { schema?: string; table: string } |
   if (!m) return null
   const alias = m[3]?.trim().replace(/^as\s+/i, '')
   if (alias && /^(where|order|limit|offset|fetch|for)$/i.test(alias)) return null
-  return m[2] ? { schema: unq(m[1]), table: unq(m[2]) } : { table: unq(m[1]) }
+  const raw = m[2] ? `${m[1]}.${m[2]}` : m[1] // as written: the server resolves case, quoting and search_path from it
+  return m[2] ? { schema: unq(m[1]), table: unq(m[2]), raw } : { table: unq(m[1]), raw }
 }

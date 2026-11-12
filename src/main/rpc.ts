@@ -85,6 +85,7 @@ register({
   'db.schemas': (_c, s: string, system?: boolean) => sqlDriver(s).schemas(system),
   'db.objects': (_c, s: string, schema: string) => sqlDriver(s).objects(schema),
   'db.columns': (_c, s: string, schema: string, table: string) => sqlDriver(s).columns(schema, table),
+  'db.resolveTable': (_c, s: string, ref: { schema?: string; table: string; raw: string }) => sqlDriver(s).resolveTable(ref),
   'db.indexes': (_c, s: string, schema: string, table: string) => sqlDriver(s).indexes(schema, table),
   'db.fks': (_c, s: string, schema: string, table: string) => sqlDriver(s).foreignKeys(schema, table),
   'db.triggers': (_c, s: string, schema: string, table: string) => sqlDriver(s).triggers(schema, table),

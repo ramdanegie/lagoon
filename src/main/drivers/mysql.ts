@@ -77,6 +77,11 @@ export class MysqlDriver implements SqlDriver {
     ]
   }
 
+  async resolveTable(ref: { schema?: string; table: string }): Promise<{ schema: string; table: string } | null> {
+    const [r] = await this.rows<{ s: string; t: string }>('SELECT TABLE_SCHEMA AS s, TABLE_NAME AS t FROM information_schema.TABLES WHERE TABLE_SCHEMA = COALESCE(?, DATABASE()) AND TABLE_NAME = ? LIMIT 1', [ref.schema ?? null, ref.table])
+    return r ? { schema: r.s, table: r.t } : null
+  }
+
   async columns(schema: string, table: string): Promise<Column[]> {
     const r = await this.rows<Record<string, unknown>>(
       `SELECT COLUMN_NAME AS name, COLUMN_TYPE AS type, IS_NULLABLE = 'YES' AS nullable, COLUMN_DEFAULT AS dflt,

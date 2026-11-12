@@ -104,6 +104,11 @@ export class PostgresDriver implements SqlDriver {
     ]
   }
 
+  async resolveTable(ref: { raw: string }): Promise<{ schema: string; table: string } | null> {
+    const [r] = await this.rows<{ schema: string; table: string }>('SELECT n.nspname AS schema, c.relname AS table FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.oid = to_regclass($1)', [ref.raw])
+    return r ?? null
+  }
+
   async columns(schema: string, table: string): Promise<Column[]> {
     const r = await this.rows<Record<string, unknown>>(
       `SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type, NOT a.attnotnull AS nullable,

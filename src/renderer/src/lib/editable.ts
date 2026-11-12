@@ -18,9 +18,12 @@ export type Why = { ok: true; target: EditTarget } | { ok: false; reason: string
 
 /** Decide whether a result can be edited, and how rows are identified. */
 export async function resolveEditTarget(sessionId: string, sql: string, defaultSchema: string | undefined, cols: ResultColumn[]): Promise<Why> {
-  const t = singleTableOf(sql)
-  if (!t) return { ok: false, reason: 'Only results of a SELECT from a single table can be edited.' }
-  const schema = t.schema ?? defaultSchema ?? ''
+  const ref = singleTableOf(sql)
+  if (!ref) return { ok: false, reason: 'Only results of a SELECT from a single table can be edited.' }
+  // ask the server which table the name means (Postgres search_path, folded case, quoting); fall back to the open schema
+  const found = await call<{ schema: string; table: string } | null>('db.resolveTable', sessionId, ref).catch(() => null)
+  const t = found ?? { schema: ref.schema ?? defaultSchema ?? '', table: ref.table }
+  const schema = t.schema
   let tableCols: Column[]
   try {
     tableCols = await call<Column[]>('db.columns', sessionId, schema, t.table)

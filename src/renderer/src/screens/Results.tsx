@@ -168,7 +168,7 @@ function ResultView({ tab, initialIdx, onPin, running, tabId }: { tab: ResultTab
               <button className="btn sm icon cancel" disabled={!pend.count} title="Discard changes" aria-label="Discard changes" onClick={discardEdits}><Icon name="x" size={11} /></button>
             </div>
           </>
-        ) : why && !why.ok ? <span className="faint" title={why.reason}><Icon name="lock" size={11} /> Read-only</span> : null)}
+        ) : why && !why.ok ? <span className="faint ellipsis" style={{ maxWidth: 520 }} title={why.reason}><Icon name="lock" size={11} /> Read-only · {why.reason}</span> : null)}
         {running && <span className="faint">Running…</span>}
         {hasRows && mode === 'data' && <button className={`btn ghost icon sm ${search ? 'on' : ''}`} aria-label="Search in result" title="Search loaded rows" onClick={() => setSearch(search ? null : { col: '__any__', op: 'Contains', text: '', caseSensitive: false })}><Icon name="search" size={12} /></button>}
         {hasRows && <button className="btn ghost sm" onClick={() => setExporting(true)}>Export…</button>}

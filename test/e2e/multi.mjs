@@ -109,6 +109,15 @@ try {
   await w.getByRole('gridcell', { name: '3', exact: true }).waitFor()
   step('MySQL Tables overview')
 
+  await w.getByRole('treeitem', { name: 'products' }).click({ button: 'right' })
+  await w.getByRole('menuitem', { name: 'New Query Here' }).click()
+  await w.locator('.cm-content:visible').last().click()
+  await w.keyboard.press('Meta+A')
+  await w.keyboard.insertText('select * from products')
+  await w.getByRole('button', { name: 'Run Current' }).first().click()
+  await w.getByText('Editable · products').waitFor()
+  step('MySQL: results of an unqualified table are editable')
+
   // switching back: each tab still reads its own database
   await w.getByRole('tab', { name: /customers/ }).click()
   await w.getByText(/of 750 rows/).waitFor()
@@ -194,13 +203,38 @@ try {
   await w.getByRole('gridcell', { name: 'Contact 1', exact: true }).waitFor()
   step('New Query Here runs on that database')
 
+  // a table found through search_path (not the schema open in the tree), named in mixed case: its results are editable
+  const sqlRun = async (text, all = false) => {
+    await w.locator('.cm-content:visible').last().click()
+    await w.keyboard.press('Meta+A')
+    await w.keyboard.insertText(text)
+    if (all) await ea.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((x) => x.webContents.send('command', 'query.runAll')))
+    else await w.getByRole('button', { name: 'Run Current' }).first().click()
+  }
+  await sqlRun("drop table if exists staging.dim_x, staging.nokey_x;\ncreate table staging.dim_x (id int primary key, name text);\ninsert into staging.dim_x values (1, 'one'), (2, 'two');\nset search_path to staging, public;", true)
+  await w.getByText('Command: SET').waitFor()
+  await sqlRun('SELECT * FROM Dim_X')
+  await w.getByText('Editable · dim_x').waitFor()
+  await w.getByRole('gridcell', { name: 'one', exact: true }).dblclick()
+  await w.getByLabel('Edit name').fill('uno')
+  await w.keyboard.press('Enter')
+  await w.getByRole('button', { name: 'Save changes' }).last().click()
+  await w.getByText(/saved to dim_x/).waitFor()
+  await sqlRun('select name from staging.dim_x where id = 1')
+  await w.getByRole('gridcell', { name: 'uno', exact: true }).waitFor()
+  await sqlRun('create table staging.nokey_x (a int);\nselect * from staging.nokey_x;', true)
+  await w.getByText(/Read-only · nokey_x has no primary or unique key/).waitFor()
+  await sqlRun('drop table staging.dim_x;\ndrop table staging.nokey_x;\nset search_path to public;', true)
+  await w.waitForTimeout(500)
+  step('results from a search_path table in mixed case are editable; read-only says why')
+
   // many columns and many tabs scroll inside the grid / tab strip; the layout never grows past the window
   const fits = () => w.evaluate(() => {
     const strip = document.querySelector('.tabbar'), grid = [...document.querySelectorAll('.grid')].find((g) => g.offsetParent)
     return { win: innerWidth, doc: document.documentElement.scrollWidth, ws: document.querySelector('.ws').getBoundingClientRect().width,
       strip: strip.scrollWidth > strip.clientWidth, grid: grid ? grid.scrollWidth > grid.clientWidth : null }
   })
-  await w.locator('.cm-content').last().click()
+  await w.locator('.cm-content:visible').last().click()
   await w.keyboard.press('Meta+A')
   await w.keyboard.insertText(`select ${Array.from({ length: 60 }, (_, i) => `${i} as column_${i}`).join(', ')}`)
   await w.getByRole('button', { name: /Run Current|Run All/ }).first().click()

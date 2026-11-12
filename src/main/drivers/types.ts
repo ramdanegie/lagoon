@@ -30,6 +30,8 @@ export interface SqlDriver {
   ddl(schema: string, name: string, kind: string): Promise<string>
   estimateCount(schema: string, table: string): Promise<number | null>
   tableStats(schema: string): Promise<TableStat[]>
+  /** The table a reference in a query names, resolved the way the server does (search path, case, quoting). */
+  resolveTable(ref: { schema?: string; table: string; raw: string }): Promise<{ schema: string; table: string } | null>
   query(sql: string): Promise<Result>
   cancel(): Promise<void>
   processes(): Promise<Result>
