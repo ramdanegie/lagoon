@@ -224,6 +224,42 @@ try {
   assert.ok(await w.getByRole('tab', { name: /customers/ }).count())
   step('disconnecting MySQL closed only its tabs')
 
+  // query builder: tables joined through their foreign key, a grouped count, sorted, opened as a query and run
+  await w.getByRole('tab', { name: /customers/ }).click()
+  await w.getByRole('button', { name: 'Tools' }).click()
+  await w.getByRole('menuitem', { name: 'Query Builder…' }).click()
+  const qb = w.getByRole('dialog', { name: 'Query Builder' })
+  await qb.getByRole('listitem').filter({ hasText: /^\s*customers$/ }).click()
+  await qb.getByRole('region', { name: 'Table customers' }).waitFor()
+  await qb.getByRole('listitem').filter({ hasText: /^\s*orders$/ }).click()
+  await qb.getByRole('button', { name: 'INNER join customers.id = orders.customer_id' }).waitFor()
+  await qb.getByRole('checkbox', { name: 'Select customers.city' }).check()
+  await qb.getByRole('checkbox', { name: 'Select orders.id' }).check()
+  await qb.getByLabel('Function for orders.id').selectOption('COUNT')
+  await qb.getByLabel('Alias for orders.id').fill('n')
+  await qb.getByRole('button', { name: 'Add sort' }).click()
+  await qb.getByLabel('Sort 1 column').selectOption({ label: 'customers.city' })
+  await qb.getByRole('button', { name: 'Add condition' }).click()
+  await qb.getByLabel('Condition 1 column').selectOption({ label: 'customers.city' })
+  await qb.getByLabel('Condition 1 operator').selectOption('<>')
+  await qb.getByLabel('Condition 1 value').fill('Tokyo')
+  const built = await qb.getByLabel('SQL').innerText()
+  assert.equal(built, [
+    'SELECT "customers"."city",',
+    '       COUNT("orders"."id") AS "n"',
+    'FROM "public"."customers"',
+    'INNER JOIN "public"."orders" ON "customers"."id" = "orders"."customer_id"',
+    `WHERE "customers"."city" <> 'Tokyo'`,
+    'GROUP BY "customers"."city"',
+    'ORDER BY "customers"."city" ASC;'
+  ].join('\n'))
+  await w.screenshot({ path: join(shots, 'S60-query-builder.png') })
+  await qb.getByRole('button', { name: 'Open in new query tab' }).click()
+  await w.getByRole('button', { name: /Run Current|Run All/ }).first().click()
+  await w.getByRole('gridcell', { name: 'Berlin', exact: true }).waitFor()
+  assert.equal(await w.getByRole('gridcell', { name: 'Tokyo', exact: true }).count(), 0)
+  step('query builder: FK auto-join, grouped count, condition and sort; the query runs')
+
   // automation: an export task and a failing SQL task, run by hand; results land in the history
   const auto = mkdtempSync(join(tmpdir(), 'lg-auto-'))
   await ea.evaluate(({ dialog, Notification }, dir) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] }); Notification.isSupported = () => false }, auto)

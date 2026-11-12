@@ -49,6 +49,7 @@ export const COMMANDS: Command[] = [
   { id: 'tools.structSync', label: 'Structure Synchronization…', menu: 'Tools' },
   { id: 'tools.generate', label: 'Generate Test Data…', menu: 'Tools' },
   { id: 'tools.dictionary', label: 'Data Dictionary…', menu: 'Tools' },
+  { id: 'tools.queryBuilder', label: 'Query Builder…', menu: 'Tools' },
   { id: 'tools.automation', label: 'Automation…', menu: 'Tools' },
   { id: 'tools.plugins', label: 'Manage Plugins…', menu: 'Tools', accel: 'CmdOrCtrl+L', sep: true },
 

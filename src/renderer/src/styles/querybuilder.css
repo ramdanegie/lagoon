@@ -1,0 +1,19 @@
+/* Visual query builder. Card header 30px and column rows 22px: QueryBuilder.tsx draws join lines from these. */
+.qb-top { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: var(--sp-4); height: 380px; }
+.qb-tables { gap: var(--sp-2); min-height: 0; }
+.qb-list { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
+.qb-add { display: flex; align-items: center; gap: var(--sp-2); width: 100%; border: 0; background: transparent; padding: var(--sp-2) var(--sp-3); text-align: left; color: var(--fg); font-size: var(--fs-sm); }
+.qb-add:hover { background: var(--bg-hover); }
+.qb-canvas { position: relative; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-app); }
+.qb-lines { position: absolute; left: 0; top: 0; pointer-events: none; }
+.qb-lines path { fill: none; stroke: var(--focus); stroke-width: 1.5; }
+.qb-card { position: absolute; background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); font-size: var(--fs-sm); }
+.qb-card header { height: 30px; box-sizing: border-box; display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: 1px solid var(--border); background: var(--bg-elev); border-radius: var(--r-md) var(--r-md) 0 0; cursor: grab; user-select: none; }
+.qb-col { height: 22px; box-sizing: border-box; display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-3); cursor: default; }
+.qb-col:hover { background: var(--bg-hover); }
+.qb-col input { margin: 0; accent-color: var(--accent); }
+.qb-join { position: absolute; transform: translate(-50%, -50%); z-index: 2; border: 1px solid var(--focus); background: var(--bg-panel); color: var(--focus); border-radius: var(--r-sm); font-size: var(--fs-xs); padding: 0 var(--sp-2); line-height: 16px; }
+.qb-bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr); gap: var(--sp-4); margin-top: var(--sp-4); }
+.qb-line { gap: var(--sp-2); }
+.qb-line .select { width: auto; max-width: 200px; }
+.qb-sql { margin: 0; max-height: 380px; overflow: auto; white-space: pre-wrap; }

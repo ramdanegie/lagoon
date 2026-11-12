@@ -25,6 +25,7 @@ const FEATURES: { label: string; cmd: string; icon: string }[] = [
   { label: 'Import CSV', cmd: 'file.importCsv', icon: 'upload' },
   { label: 'Import Excel', cmd: 'file.importExcel', icon: 'upload' },
   { label: 'Automation', cmd: 'tools.automation', icon: 'history' },
+  { label: 'Query Builder', cmd: 'tools.queryBuilder', icon: 'sql' },
   { label: 'Manage Plugins', cmd: 'tools.plugins', icon: 'plug' },
   { label: 'New SQL Query', cmd: 'nav.newQuery', icon: 'sql' },
   { label: 'Settings', cmd: 'app.settings', icon: 'gear' }

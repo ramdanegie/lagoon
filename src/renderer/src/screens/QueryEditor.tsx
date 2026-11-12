@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorView, hoverTooltip, type Tooltip } from '@codemirror/view'
 import { undo, redo, toggleComment, toggleBlockComment } from '@codemirror/commands'
 import { openSearchPanel, selectNextOccurrence } from '@codemirror/search'
@@ -17,6 +17,7 @@ import { Icon } from '../components/Icon'
 import { Modal, Resizer, confirmDialog, menuBelow, promptDialog, type MenuItem } from '../components/ui'
 import { ResultsPane, type ResultTab } from './Results'
 import { SnippetsPanel } from './Snippets'
+const QueryBuilder = lazy(() => import('./QueryBuilder').then((m) => ({ default: m.QueryBuilder })))
 import { flatQueries, refreshQueries } from './QueriesPanel'
 import { MongoQuery } from './MongoQuery'
 
@@ -66,6 +67,7 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
   const [analyze, setAnalyze] = useSetting('explain.analyze', false)
   const [userSnippets] = useSetting<Snippet[]>(USER_SNIPPETS, [])
   const [snip, setSnip] = useState<{ anchor: HTMLElement; selection: string } | null>(null)
+  const [building, setBuilding] = useState(false)
   const view = useRef<EditorView | null>(null)
   const scope = `query-${tab.id}`
 
@@ -420,6 +422,7 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
             { label: 'Style', submenu: (['standard', 'tabularLeft', 'tabularRight'] as const).map((n) => ({ label: n === 'standard' ? 'Standard' : n === 'tabularLeft' ? 'Tabular, left' : 'Tabular, right', checked: setting('format.type', 'standard') === n, onClick: () => void call('settings.set', 'format.type', n) })) }
           ])}><Icon name="chevronDown" size={10} /></button>
         </div>
+        <button className="btn ghost sm" title="Build a SELECT visually: tables, joins, conditions" onClick={() => setBuilding(true)}>Builder</button>
         <button className="btn ghost sm" title="Snippet library" aria-expanded={!!snip} onClick={(e) => { const v = view.current; setSnip(snip ? null : { anchor: e.currentTarget, selection: v ? v.state.sliceDoc(v.state.selection.main.from, v.state.selection.main.to) : '' }) }}>Snippets</button>
         <div className="seg">
           <button disabled={running} title={analyze && d !== 'sqlite' ? 'Explain Analyze: runs the current statement and shows its measured plan' : 'Show the plan of the current statement'} onClick={() => void explain(analyze)}>{analyze && d !== 'sqlite' ? 'Explain Analyze' : 'Explain'}</button>
@@ -455,6 +458,17 @@ function SqlEditor({ tab }: { tab: Tab }): ReactNode {
             running={running}
           />
         </>
+      )}
+      {building && (
+        <Suspense fallback={null}>
+          <QueryBuilder useLabel="Insert into editor" onClose={() => setBuilding(false)} onUse={(sql) => {
+            const v = view.current
+            if (!v) return
+            const sel = v.state.selection.main
+            v.dispatch({ changes: { from: sel.from, to: sel.to, insert: sql }, selection: { anchor: sel.from + sql.length } })
+            v.focus()
+          }} />
+        </Suspense>
       )}
       {snip && <SnippetsPanel anchor={snip.anchor} dialect={d} selection={snip.selection} onInsert={insertSnippet} onClose={() => setSnip(null)} />}
       {params && <ParamsDialog names={params.names} onDone={(v) => { params.resolve(v); setParams(null) }} />}

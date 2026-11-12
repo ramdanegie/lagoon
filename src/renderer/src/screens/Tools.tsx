@@ -1,7 +1,7 @@
 import { type ReactNode, Suspense, lazy, useEffect, useState } from 'react'
 import type { DbObject } from '@shared/types'
 import { tip, toast, useCommands } from '../lib/api'
-import { useWs, setWs, ws, openTab } from '../lib/ws'
+import { useWs, setWs, ws, openTab, newQueryTab } from '../lib/ws'
 import { pluginMenuItems } from '../lib/plugins'
 import { Icon } from '../components/Icon'
 import { menuBelow } from '../components/ui'
@@ -18,9 +18,10 @@ const DataSync = lazy(() => import('./DataSync').then((m) => ({ default: m.DataS
 const StructureSync = lazy(() => import('./StructureSync').then((m) => ({ default: m.StructureSync })))
 const DataGenerator = lazy(() => import('./DataGenerator').then((m) => ({ default: m.DataGenerator })))
 const DataDictionary = lazy(() => import('./DataDictionary').then((m) => ({ default: m.DataDictionary })))
+const QueryBuilder = lazy(() => import('./QueryBuilder').then((m) => ({ default: m.QueryBuilder })))
 const AutomationDialog = lazy(() => import('./Automation').then((m) => ({ default: m.AutomationDialog })))
 
-type Dlg = { kind: 'transfer'; items?: DbObject[] } | { kind: 'dataSync' } | { kind: 'structSync' } | { kind: 'generate'; table?: DbObject } | { kind: 'dictionary' } | { kind: 'process' } | { kind: 'plugins' } | { kind: 'import'; format: 'csv' | 'json' | 'sql' | 'xlsx'; table?: DbObject } | { kind: 'export'; items: DbObject[] } | { kind: 'backup' } | { kind: 'restore' } | { kind: 'automation' } | null
+type Dlg = { kind: 'transfer'; items?: DbObject[] } | { kind: 'dataSync' } | { kind: 'structSync' } | { kind: 'generate'; table?: DbObject } | { kind: 'dictionary' } | { kind: 'process' } | { kind: 'plugins' } | { kind: 'import'; format: 'csv' | 'json' | 'sql' | 'xlsx'; table?: DbObject } | { kind: 'export'; items: DbObject[] } | { kind: 'backup' } | { kind: 'restore' } | { kind: 'automation' } | { kind: 'queryBuilder' } | null
 
 /** Opens tool windows. Other screens open them through `openTool` (window event) so they stay decoupled. */
 export function openTool(detail: Exclude<Dlg, null>): void {
@@ -48,6 +49,7 @@ export function Tools(): ReactNode {
     'tools.search': need(sql, 'Search in database', () => setWs({ sidebarSearch: true, left: true })),
     'tools.plugins': () => setDlg({ kind: 'plugins' }),
     'tools.automation': () => setDlg({ kind: 'automation' }),
+    'tools.queryBuilder': need(sql, 'The query builder', () => setDlg({ kind: 'queryBuilder' })),
     'tools.transfer': need(sql, 'Data transfer', () => setDlg({ kind: 'transfer', items: ws().selectedObjects.filter((o) => o.kind === 'table') })),
     'tools.dataSync': need(sql, 'Data synchronization', () => setDlg({ kind: 'dataSync' })),
     'tools.structSync': need(sql && ws().dialect !== 'sqlite', 'Structure synchronization', () => setDlg({ kind: 'structSync' })),
@@ -78,6 +80,7 @@ export function Tools(): ReactNode {
             { label: 'ER Diagram', disabled: !sql, onClick: actions['tools.diagram'] },
             { label: 'Metrics Board', disabled: !sql, onClick: actions['tools.metrics'] },
             { label: 'Search in Database…', disabled: !sql, onClick: actions['tools.search'] },
+            { label: 'Query Builder…', disabled: !sql, onClick: actions['tools.queryBuilder'] },
             { sep: true },
             { label: 'Data Transfer…', disabled: !sql, onClick: actions['tools.transfer'] },
             { label: 'Data Synchronization…', disabled: !sql, onClick: actions['tools.dataSync'] },
@@ -111,6 +114,7 @@ export function Tools(): ReactNode {
       {dlg?.kind === 'generate' && <DataGenerator table={dlg.table} onClose={() => setDlg(null)} />}
       {dlg?.kind === 'dictionary' && <DataDictionary onClose={() => setDlg(null)} />}
       {dlg?.kind === 'automation' && <AutomationDialog onClose={() => setDlg(null)} />}
+      {dlg?.kind === 'queryBuilder' && <QueryBuilder useLabel="Open in new query tab" onUse={(sql) => newQueryTab(sql)} onClose={() => setDlg(null)} />}
       </Suspense>
     </>
   )
